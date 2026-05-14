@@ -4,7 +4,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../components/input';
 import { Senha } from '../../components/senha';
 //Colocar o código em maiusculo
-
+// Teste Nicollas
 export default function Index(){ 
     const router = useRouter();
 
