@@ -1,4 +1,5 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from '../../.expo/types/router';
 
 export default function Inicio(){
 return( //Topo do código
@@ -13,7 +14,7 @@ return( //Topo do código
         <Text style={styles.welcomeText}>Bem vindo               XXXX!</Text>
         <View style={styles.buttonContainer}>
             {/* Base do código */}
-            <Pressable style={styles.button}>
+            <Pressable style={styles.button} onPress={() => router.push('/comunicados')}>
                 <Image source={require('../../assets/images/megafone.png')} style={styles.image} />
                 <Text style={styles.buttonText}>Comunicados</Text>
             </Pressable>
