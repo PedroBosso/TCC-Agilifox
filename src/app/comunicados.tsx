@@ -1,8 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 export default function Comunicados(){
     return(
         <View style = {styles.container}>
-            <Text>Comunicados</Text>
+            <Image source={require('../../assets/images/megafone.png')} style={styles.image}></Image>
         </View>
 
     )
@@ -12,4 +12,11 @@ export default function Comunicados(){
         backgroundColor: '#f3e9d7',
         flex: 1,
     },
+        image: {
+            width: 60,
+            height: 60,
+            position: 'absolute',
+            top: 10,
+            left: 10,
+        },
     })

@@ -1,5 +1,5 @@
+import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from '../../.expo/types/router';
 
 export default function Inicio(){
 return( //Topo do código
