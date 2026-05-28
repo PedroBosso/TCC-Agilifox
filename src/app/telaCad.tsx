@@ -5,7 +5,7 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { faceService, Visitante } from '../../services/faceService';
+import { faceService, Visitante } from '../../services/faceServices';
 
 export default function Visitantes() {
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
@@ -94,14 +94,14 @@ export default function Visitantes() {
       <View style={styles.acoes}>
         <Pressable
           style={styles.btnCadastrar}
-          onPress={() => router.push('/visitantes/cadastro')}
+          onPress={() => router.push('../../src/cadastro')}
         >
           <Text style={styles.btnCadastrarText}>+ Cadastrar visitante</Text>
         </Pressable>
 
         <Pressable
           style={styles.btnReconhecer}
-          onPress={() => router.push('/visitantes/reconhecimento')}
+          onPress={() => router.push('../../src/reconhecimento')}
         >
           <Text style={styles.btnReconhecerText}>🔍 Reconhecer</Text>
         </Pressable>

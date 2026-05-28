@@ -7,7 +7,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { faceService } from '../../services/faceService';
+import { faceService } from '../../services/faceServices';
 
 type Etapa = 'formulario' | 'camera' | 'confirmacao';
 

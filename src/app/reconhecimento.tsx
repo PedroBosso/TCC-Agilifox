@@ -6,7 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { faceService, ReconhecimentoResult } from '../../services/faceService';
+import { faceService, ReconhecimentoResult } from '../../services/faceServices';
 
 type Estado = 'camera' | 'processando' | 'resultado';
 
@@ -182,7 +182,7 @@ export default function Reconhecimento() {
           {!encontrado && (
             <Pressable
               style={styles.btnCadastrar}
-              onPress={() => router.push('/visitantes/cadastro')}
+              onPress={() => router.push('../../src/cadastro')}
             >
               <Text style={styles.btnCadastrarText}>+ Cadastrar</Text>
             </Pressable>
