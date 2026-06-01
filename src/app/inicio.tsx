@@ -63,6 +63,11 @@ return( //Topo do código
                 <Image source={require('../../assets/images/cotas.png')} style={styles.image} />
                 <Text style={styles.buttonText}>Cotas pendentes</Text>
             </Pressable>
+
+            <Pressable style={styles.button10} onPress={() => router.push('/telaCad')}>
+                <Image source={require('../../assets/images/pessoas.png')} style={styles.image} />
+                <Text style={styles.buttonText}>Cadastro</Text>
+            </Pressable>
         </View>
 
 </View>
@@ -218,6 +223,17 @@ const styles = StyleSheet.create({
         margin: 10,
     },
     button9: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        borderBlockColor: "#000000",
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 15,
+        width: 90,
+        height: 100,
+        margin: 10,
+    },
+    button10: {
         flexDirection: 'column',
         alignItems: 'center',
         borderBlockColor: "#000000",
