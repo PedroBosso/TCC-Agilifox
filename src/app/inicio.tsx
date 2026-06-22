@@ -1,6 +1,12 @@
 import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+const Routes = {
+    encomenda: '../../src/app/encomendas.tsx',
+    telacad: '../../src/app/telaCad.tsx',
+    comunicados: '../../src/app/comunicados.tsx',
+}as const;
+
 export default function Inicio(){
 return( //Topo do código
     <View style = {styles.container}>
@@ -14,12 +20,12 @@ return( //Topo do código
         <Text style={styles.welcomeText}>Bem vindo               Morador!</Text>
         <View style={styles.buttonContainer}>
             {/* Base do código */}
-            <Pressable style={styles.button} onPress={() => router.push('/comunicados')}>
+            <Pressable style={styles.button} onPress={() => router.push(Routes.comunicados)}>
                 <Image source={require('../../assets/images/megafone.png')} style={styles.image} />
                 <Text style={styles.buttonText}>Comunicados</Text>
             </Pressable>
 
-            <Pressable style={styles.button3}>
+            <Pressable style={styles.button3} onPress={() => router.push(Routes.encomenda)}>
                 <Image source={require('../../assets/images/pacote.png')} style={styles.image} />
                 <Text style={styles.buttonText}>Minhas encomendas</Text>
             </Pressable>
@@ -64,7 +70,7 @@ return( //Topo do código
                 <Text style={styles.buttonText}>Cotas pendentes</Text>
             </Pressable>
 
-            <Pressable style={styles.button10} onPress={() => router.push('/telaCad')}>
+            <Pressable style={styles.button10} onPress={() => router.push(Routes.telacad)}>
                 <Image source={require('../../assets/images/pessoas.png')} style={styles.image} />
                 <Text style={styles.buttonText}>Cadastro</Text>
             </Pressable>

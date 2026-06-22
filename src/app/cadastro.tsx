@@ -95,7 +95,7 @@ export default function CadastroVisitante() {
         fotoBase64,
         dataRegistro: new Date().toISOString(),
       });
-      Alert.alert('✅ Sucesso', `${nome} foi cadastrado com sucesso!`, [
+      Alert.alert('Sucesso', `${nome} foi cadastrado com sucesso!`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err) {
