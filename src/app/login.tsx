@@ -1,16 +1,14 @@
 // import { fragment } from 'react'; dá pra usar no lugar do View, mas é melhor usar o View mesmo, porque o fragment não tem estilo, e o View tem, então é melhor usar o View para poder estilizar depois. 
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../components/input';
 import { Senha } from '../../components/senha';
-
-const ROUTER = {
-    inicio: '../../src/app/inicio.tsx',
-    cadastro: '../../src/app/cadastro.tsx',
-}as const;
+const Routes = {
+    inicio: './inicio',
+    cadastro: './cadastro',
+} as const;
 //Colocar o código em maiusculo
 export default function Index(){ 
-    const router = useRouter();
 
     return (
         <View style={styles.container}>
@@ -24,11 +22,11 @@ export default function Index(){
             <Input />
             <Senha />
 
-            <Pressable style={styles.button} onPress={() => router.push(ROUTER.inicio)}>
+            <Pressable style={styles.button} onPress={() => router.push(Routes.inicio)}>
                 <Text style={styles.buttonText}>Login</Text>
             </Pressable>
             <Text>
-                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push(ROUTER.cadastro)}> Cadastre-se aqui</Text>!
+                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push(Routes.cadastro)}> Cadastre-se aqui</Text>!
             </Text>
         </View>
     )

@@ -2,10 +2,10 @@ import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    encomenda: '../../src/app/encomendas.tsx',
-    telacad: '../../src/app/telaCad.tsx',
-    comunicados: '../../src/app/comunicados.tsx',
-}as const;
+    encomenda: './encomendas',
+    telacad: './telaCad',
+    comunicados: './comunicados',
+} as const;
 
 export default function Inicio(){
 return( //Topo do código

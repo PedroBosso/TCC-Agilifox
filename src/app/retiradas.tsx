@@ -1,26 +1,34 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   FlatList,
   Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+type EncomendaRetirada = {
+  id: string;
+  lote: string;
+  tipo: string;
+  retirada: string;
+  chegada: string;
+  imagem: string;
+};
 
 export default function EncomendasScreen() {
   const [abaSelecionada, setAbaSelecionada] = useState('retiradas');
 
-  const encomendasRetiradas = [
+  const encomendasRetiradas: EncomendaRetirada[] = [
     {
       id: '1',
       lote: 'LOTE 202',
       tipo: 'Caixa',
       retirada: 'Retirada 15/5/2025 às 10h19',
       chegada: 'Chegou 14/05/2025 às 17:00',
-      imagem:
-        'https://picsum.photos/200',
+      imagem: 'https://picsum.photos/200',
     },
     {
       id: '2',
@@ -28,12 +36,11 @@ export default function EncomendasScreen() {
       tipo: 'Pacote',
       retirada: 'Retirada 7/5/2025 às 11h46',
       chegada: 'Chegou 05/05/2025 às 11:34',
-      imagem:
-        'https://picsum.photos/201',
+      imagem: 'https://picsum.photos/201',
     },
   ];
 
-  function renderItem({ item }) {
+  function renderItem({ item }: { item: EncomendaRetirada }) {
     return (
       <TouchableOpacity style={styles.card}>
         <Image
@@ -284,3 +291,4 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 });
+
