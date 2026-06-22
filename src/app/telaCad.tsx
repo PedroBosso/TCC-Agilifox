@@ -94,14 +94,14 @@ export default function Visitantes() {
       <View style={styles.acoes}>
         <Pressable
           style={styles.btnCadastrar}
-          onPress={() => router.push('../../src/cadastro')}
+          onPress={() => router.push('../cadastro')}
         >
           <Text style={styles.btnCadastrarText}>+ Cadastrar visitante</Text>
         </Pressable>
 
         <Pressable
           style={styles.btnReconhecer}
-          onPress={() => router.push('../../src/reconhecimento')}
+          onPress={() => router.push('../reconhecimento')}
         >
           <Text style={styles.btnReconhecerText}>Reconhecer</Text>
         </Pressable>

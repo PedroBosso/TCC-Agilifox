@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   FlatList,
@@ -16,12 +17,14 @@ type Encomenda = {
   descricao: string;
   data: string;
   imagem: string;
+  tipo?: 'disponivel' | 'retirada';
+  dataRetirada?: string;
 };
 
 export default function EncomendasScreen() {
   const [abaAtiva, setAbaAtiva] = useState('disponiveis');
 
-  const encomendas: Encomenda[] = [
+  const encomendasDisponiveis: Encomenda[] = [
     {
       id: '1',
       lote: 'LOTE 202',
@@ -30,6 +33,7 @@ export default function EncomendasScreen() {
         'Sua encomenda chegou, por favor trazer o código para retirada.',
       data: 'Chegou 25/06/2025 às 17:34',
       imagem: 'https://picsum.photos/200',
+      tipo: 'disponivel',
     },
     {
       id: '2',
@@ -38,8 +42,34 @@ export default function EncomendasScreen() {
       descricao: 'Sua encomenda chegou',
       data: 'Chegou 10/06/2025 às 12:40',
       imagem: 'https://picsum.photos/201',
+      tipo: 'disponivel',
     },
   ];
+
+  const encomendasRetiradas: Encomenda[] = [
+    {
+      id: '3',
+      lote: 'LOTE 202',
+      titulo: 'Caixa',
+      descricao: 'Encomenda retirada com sucesso',
+      data: 'Chegou 15/05/2025 às 10h19',
+      dataRetirada: 'Retirada 15/5/2025 às 10h19',
+      imagem: 'https://picsum.photos/200',
+      tipo: 'retirada',
+    },
+    {
+      id: '4',
+      lote: 'LOTE 202',
+      titulo: 'Pacote',
+      descricao: 'Encomenda retirada com sucesso',
+      data: 'Chegou 05/05/2025 às 11:34',
+      dataRetirada: 'Retirada 7/5/2025 às 11h46',
+      imagem: 'https://picsum.photos/201',
+      tipo: 'retirada',
+    },
+  ];
+
+  const encomendas = abaAtiva === 'disponiveis' ? encomendasDisponiveis : encomendasRetiradas;
 
   const renderItem = ({ item }: { item: Encomenda }) => (
     <TouchableOpacity style={styles.card}>
@@ -49,7 +79,21 @@ export default function EncomendasScreen() {
         <Text style={styles.lote}>{item.lote}</Text>
         <Text style={styles.titulo}>{item.titulo}</Text>
         <Text style={styles.descricao}>{item.descricao}</Text>
-        <Text style={styles.data}>{item.data}</Text>
+        {item.tipo === 'retirada' ? (
+          <>
+            <View style={styles.retiradaContainer}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={14}
+                color="#4CAF50"
+              />
+              <Text style={styles.dataRetirada}>{item.dataRetirada}</Text>
+            </View>
+            <Text style={styles.data}>{item.data}</Text>
+          </>
+        ) : (
+          <Text style={styles.data}>{item.data}</Text>
+        )}
       </View>
 
       <Ionicons name="chevron-forward" size={28} color="#666" />
@@ -60,7 +104,9 @@ export default function EncomendasScreen() {
     <View style={styles.container}>
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <Ionicons name="arrow-back" size={28} color="#333" />
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={28} color="#333" />
+        </TouchableOpacity>
 
         <View>
           <Text style={styles.condominio}>
@@ -113,12 +159,21 @@ export default function EncomendasScreen() {
       />
 
       {/* Lista */}
-      <FlatList
-        data={encomendas}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-      />
+      {encomendas.length > 0 ? (
+        <FlatList
+          data={encomendas}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="package-outline" size={64} color="#ddd" />
+          <Text style={styles.emptyText}>
+            Nenhuma encomenda {abaAtiva === 'disponiveis' ? 'disponível' : 'retirada'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -216,6 +271,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7D8790',
     marginTop: 6,
+  },
+
+  retiradaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+
+  dataRetirada: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginLeft: 5,
+    fontWeight: '500',
+  },
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 100,
+  },
+
+  emptyText: {
+    fontSize: 16,
+    color: '#bbb',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 

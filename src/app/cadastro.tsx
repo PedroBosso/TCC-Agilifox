@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressa
 import { faceService } from '../../services/faceServices';
 
 const ROUTES = {
-  RECONHECIMENTO: '../../src/reconhecimento',
+  RECONHECIMENTO: '../reconhecimento',
 } as const;
 
 const CAMERA_CONFIG = {
