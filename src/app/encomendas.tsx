@@ -1,18 +1,27 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
   FlatList,
+  Image,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+type Encomenda = {
+  id: string;
+  lote: string;
+  titulo: string;
+  descricao: string;
+  data: string;
+  imagem: string;
+};
 
 export default function EncomendasScreen() {
   const [abaAtiva, setAbaAtiva] = useState('disponiveis');
 
-  const encomendas = [
+  const encomendas: Encomenda[] = [
     {
       id: '1',
       lote: 'LOTE 202',
@@ -20,8 +29,7 @@ export default function EncomendasScreen() {
       descricao:
         'Sua encomenda chegou, por favor trazer o código para retirada.',
       data: 'Chegou 25/06/2025 às 17:34',
-      imagem:
-        'https://picsum.photos/200',
+      imagem: 'https://picsum.photos/200',
     },
     {
       id: '2',
@@ -29,32 +37,22 @@ export default function EncomendasScreen() {
       titulo: 'Caixa',
       descricao: 'Sua encomenda chegou',
       data: 'Chegou 10/06/2025 às 12:40',
-      imagem:
-        'https://picsum.photos/201',
+      imagem: 'https://picsum.photos/201',
     },
   ];
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item }: { item: Encomenda }) => (
     <TouchableOpacity style={styles.card}>
       <Image source={{ uri: item.imagem }} style={styles.imagem} />
 
       <View style={styles.info}>
         <Text style={styles.lote}>{item.lote}</Text>
-
         <Text style={styles.titulo}>{item.titulo}</Text>
-
-        <Text style={styles.descricao}>
-          {item.descricao}
-        </Text>
-
+        <Text style={styles.descricao}>{item.descricao}</Text>
         <Text style={styles.data}>{item.data}</Text>
       </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={28}
-        color="#666"
-      />
+      <Ionicons name="chevron-forward" size={28} color="#666" />
     </TouchableOpacity>
   );
 
@@ -62,27 +60,16 @@ export default function EncomendasScreen() {
     <View style={styles.container}>
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <Ionicons
-          name="arrow-back"
-          size={28}
-          color="#333"
-        />
+        <Ionicons name="arrow-back" size={28} color="#333" />
 
         <View>
           <Text style={styles.condominio}>
             CONDOMÍNIO RESIDENCIAL PETRONIO PORTELA
           </Text>
-
-          <Text style={styles.tituloPagina}>
-            Encomendas
-          </Text>
+          <Text style={styles.tituloPagina}>Encomendas</Text>
         </View>
 
-        <Ionicons
-          name="search"
-          size={28}
-          color="#333"
-        />
+        <Ionicons name="search" size={28} color="#333" />
       </View>
 
       {/* Tabs */}
@@ -231,3 +218,4 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 });
+

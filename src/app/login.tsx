@@ -3,6 +3,11 @@ import { useRouter } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../components/input';
 import { Senha } from '../../components/senha';
+
+const ROUTER = {
+    inicio: '../../src/app/inicio.tsx',
+    cadastro: '../../src/app/cadastro.tsx',
+}as const;
 //Colocar o código em maiusculo
 export default function Index(){ 
     const router = useRouter();
@@ -19,11 +24,11 @@ export default function Index(){
             <Input />
             <Senha />
 
-            <Pressable style={styles.button} onPress={() => router.push('/inicio')}>
+            <Pressable style={styles.button} onPress={() => router.push(ROUTER.inicio)}>
                 <Text style={styles.buttonText}>Login</Text>
             </Pressable>
             <Text>
-                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push('/cadastro')}> Cadastre-se aqui</Text>!
+                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push(ROUTER.cadastro)}> Cadastre-se aqui</Text>!
             </Text>
         </View>
     )
