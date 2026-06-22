@@ -1,13 +1,41 @@
-// app/visitantes/cadastro.tsx
-// Tela de cadastro de visitante com captura de foto pela câmera.
-// Dependências necessárias:
-//   npx expo install expo-camera
+
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { faceService } from '../../services/faceServices';
+
+const ROUTES = {
+  RECONHECIMENTO: '../../src/reconhecimento',
+} as const;
+
+const CAMERA_CONFIG = {
+  QUALITY: 0.7,
+  PHOTO_WIDTH: 120,
+  PHOTO_HEIGHT: 120,
+  BORDER_RADIUS: 60,
+} as const;
+
+const UI_CONFIG = {
+  SPACING: {
+    PADDING_HORIZONTAL: 20,
+    MARGIN_BOTTOM: 24,
+    MARGIN_TOP: 8,
+  },
+} as const;
+
+const COLORS_CONFIG = {
+  PRIMARY: '#e49c15',
+  BACKGROUND: '#f3e9d7',
+  WHITE: '#fff',
+  BORDER: '#ddd',
+  PLACEHOLDER_BG: '#e8dcc8',
+  PLACEHOLDER_BORDER: '#d4c4a8',
+  TEXT_DARK: '#222',
+  TEXT_GRAY: '#555',
+  TEXT_LIGHT: '#999',
+} as const;
 
 type Etapa = 'formulario' | 'camera' | 'confirmacao';
 
@@ -42,16 +70,18 @@ export default function CadastroVisitante() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.7,
+        quality: CAMERA_CONFIG.QUALITY,
         exif: false,
       });
       if (photo?.base64) {
         setFotoBase64(photo.base64);
         setEtapa('confirmacao');
       }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível capturar a foto.');
-    }
+    } catch (error) {
+  const mensagem = error instanceof Error ? error.message : 'Erro desconhecido';
+  console.error('Erro ao capturar foto:', error);
+  Alert.alert('Erro na captura', `Não foi possível capturar a foto: ${mensagem}`);
+}
   };
 
   // ── Envia para o backend ────────────────────────────────────
@@ -69,8 +99,13 @@ export default function CadastroVisitante() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert('Erro', 'Não foi possível cadastrar o visitante. Verifique a conexão e tente novamente.');
-    } finally {
+  const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+  console.error('Erro ao cadastrar:', err);
+  Alert.alert(
+    'Erro no cadastro',
+    `Não foi possível cadastrar o visitante: ${errorMessage}. Verifique a conexão e tente novamente.`
+  );
+} finally {
       setCarregando(false);
     }
   };
@@ -135,7 +170,7 @@ export default function CadastroVisitante() {
           {/* Botão câmera */}
           <Pressable style={styles.btnCamera} onPress={abrirCamera}>
             <Text style={styles.btnCameraText}>
-              {fotoBase64 ? '📷 Refazer foto' : '📷 Tirar foto do rosto'}
+              {fotoBase64 ? 'Refazer foto' : 'Tirar foto do rosto'}
             </Text>
           </Pressable>
 
@@ -189,9 +224,8 @@ export default function CadastroVisitante() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  //  ETAPA 3 — Confirmação da foto
-  // ══════════════════════════════════════════════════════════════
+  //   Confirmação da foto
+ 
   return (
     <View style={[styles.container, styles.confirmacaoContainer]}>
       <View style={styles.header}>
@@ -262,17 +296,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   fotoPrevia: {
-    width: 120,
-    height: 120,
+    width:CAMERA_CONFIG.PHOTO_WIDTH,
+    height:CAMERA_CONFIG.PHOTO_HEIGHT,
     borderRadius: 60,
     borderWidth: 3,
-    borderColor: '#e49c15',
+    borderColor: COLORS_CONFIG.PRIMARY,
   },
   fotoPlaceholder: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#e8dcc8',
+    backgroundColor:COLORS_CONFIG.PLACEHOLDER_BG,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
