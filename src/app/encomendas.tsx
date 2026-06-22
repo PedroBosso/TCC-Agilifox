@@ -64,7 +64,7 @@ export default function EncomendasScreen() {
 
         <View>
           <Text style={styles.condominio}>
-            CONDOMÍNIO RESIDENCIAL PETRONIO PORTELA
+            CONDOMÍNIO 
           </Text>
           <Text style={styles.tituloPagina}>Encomendas</Text>
         </View>
