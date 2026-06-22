@@ -22,6 +22,9 @@ export default function Index(){
             <Pressable style={styles.button} onPress={() => router.push('/inicio')}>
                 <Text style={styles.buttonText}>Login</Text>
             </Pressable>
+            <Text>
+                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push('/cadastro')}> Cadastre-se aqui</Text>!
+            </Text>
         </View>
     )
 }
@@ -58,5 +61,10 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 16,
         fontWeight: "700",
+    },
+    text:{
+        textAlign: "center",
+        marginTop: 16,
+        fontSize: 14,
     }
 })

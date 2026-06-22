@@ -5,13 +5,13 @@ export default function Inicio(){
 return( //Topo do código
     <View style = {styles.container}>
         <View style={styles.header}>
-            <Text style={styles.headerText}>Apto. XXXX X</Text>
+            <Text style={styles.headerText}>Apto. 808 B</Text>
             <View style={styles.iconGroup}>
                 <Image style={styles.int} source={require('../../assets/images/int.png')} />
                 <Image style={styles.int} source={require('../../assets/images/user.png')} />
             </View>
         </View>
-        <Text style={styles.welcomeText}>Bem vindo               XXXX!</Text>
+        <Text style={styles.welcomeText}>Bem vindo               Morador!</Text>
         <View style={styles.buttonContainer}>
             {/* Base do código */}
             <Pressable style={styles.button} onPress={() => router.push('/comunicados')}>
