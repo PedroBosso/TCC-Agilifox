@@ -103,7 +103,7 @@ export default function Visitantes() {
           style={styles.btnReconhecer}
           onPress={() => router.push('../../src/reconhecimento')}
         >
-          <Text style={styles.btnReconhecerText}>🔍 Reconhecer</Text>
+          <Text style={styles.btnReconhecerText}>Reconhecer</Text>
         </Pressable>
       </View>
 
