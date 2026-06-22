@@ -182,7 +182,7 @@ export default function Reconhecimento() {
           {!encontrado && (
             <Pressable
               style={styles.btnCadastrar}
-              onPress={() => router.push('../../src/cadastro')}
+              onPress={() => router.push('../cadastro')}
             >
               <Text style={styles.btnCadastrarText}>+ Cadastrar</Text>
             </Pressable>

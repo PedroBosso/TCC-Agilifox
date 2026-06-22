@@ -1,33 +1,58 @@
-// import { fragment } from 'react'; dá pra usar no lugar do View, mas é melhor usar o View mesmo, porque o fragment não tem estilo, e o View tem, então é melhor usar o View para poder estilizar depois. 
 import { router } from 'expo-router';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../components/input';
 import { Senha } from '../../components/senha';
+
 const Routes = {
     inicio: './inicio',
     cadastro: './cadastro',
 } as const;
-//Colocar o código em maiusculo
+
 export default function Index(){ 
 
     return (
         <View style={styles.container}>
-            <Image
-                source={require("../../assets/images/logo.png")}
-                style={styles.illustration}
-            />
+            {/* Background decorativo */}
+            <View style={styles.decorativeCircle} />
+            
+            {/* Logo e título */}
+            <View style={styles.headerSection}>
+                <Image
+                    source={require("../../assets/images/logo.png")}
+                    style={styles.illustration}
+                />
+                <Text style={styles.title}>Bem vindo</Text>
+                <Text style={styles.subtitle}>Faça seu login para continuar</Text>
+            </View>
 
-            <Text style={styles.title}>Login</Text>
+            {/* Formulário */}
+            <View style={styles.formSection}>
+                <Input />
+                <Senha />
 
-            <Input />
-            <Senha />
+                <Pressable 
+                    style={({ pressed }) => [
+                        styles.button,
+                        pressed && styles.buttonPressed
+                    ]} 
+                    onPress={() => router.push(Routes.inicio)}
+                >
+                    <Text style={styles.buttonText}>Login</Text>
+                </Pressable>
+            </View>
 
-            <Pressable style={styles.button} onPress={() => router.push(Routes.inicio)}>
-                <Text style={styles.buttonText}>Login</Text>
-            </Pressable>
-            <Text>
-                Não tenha uma conta,<Text style={{color: "#e49c15"}} onPress={() => router.push(Routes.cadastro)}> Cadastre-se aqui</Text>!
-            </Text>
+            {/* Footer com link cadastro */}
+            <View style={styles.footerSection}>
+                <Text style={styles.footerText}>
+                    Não tem uma conta? 
+                    <Text 
+                        style={styles.linkText} 
+                        onPress={() => router.push(Routes.cadastro)}
+                    >
+                        {' '}Cadastre-se aqui
+                    </Text>
+                </Text>
+            </View>
         </View>
     )
 }
@@ -35,39 +60,84 @@ export default function Index(){
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#f3e9d7',
-        flex: 1, 
+        flex: 1,
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 40,
     },
-   illustration: {
-        width: "100%",
+    decorativeCircle: {
+        position: 'absolute',
+        width: 300,
         height: 300,
+        borderRadius: 150,
+        backgroundColor: 'rgba(228, 156, 21, 0.08)',
+        top: -100,
+        right: -100,
+    },
+    headerSection: {
+        alignItems: 'center',
+        marginTop: 20,
+        zIndex: 1,
+    },
+    illustration: {
+        width: 220,
+        height: 220,
         resizeMode: "contain",
-        marginTop: 2,
-        marginHorizontal: "auto",
-},
-    title:{
-        fontSize: 32,
-        fontWeight: 900,
+        marginBottom: 20,
+    },
+    title: {
+        fontSize: 36,
+        fontWeight: '900',
         textAlign: "center",
-        marginTop: 1,
-        marginHorizontal: "auto",
+        color: '#1a1a1a',
+        marginBottom: 8,
+    },
+    subtitle: {
+        fontSize: 14,
+        color: '#666666',
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    formSection: {
+        flex: 1,
+        justifyContent: 'center',
+        width: '100%',
     },
     button: {
-        marginHorizontal: 45,
-        marginTop: 32,
-        height: 40,
-        borderRadius: 19,
-        backgroundColor: "#e49c15",
+        marginTop: 28,
+        height: 50,
+        borderRadius: 12,
+        backgroundColor: '#e49c15',
         justifyContent: "center",
         alignItems: "center",
+        shadowColor: '#e49c15',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    buttonPressed: {
+        backgroundColor: '#c67e0a',
+        shadowOpacity: 0.15,
     },
     buttonText: {
         color: "#fff",
         fontSize: 16,
         fontWeight: "700",
+        letterSpacing: 0.5,
     },
-    text:{
-        textAlign: "center",
-        marginTop: 16,
+    footerSection: {
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    footerText: {
         fontSize: 14,
+        color: '#666666',
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    linkText: {
+        color: '#e49c15',
+        fontWeight: '700',
     }
 })

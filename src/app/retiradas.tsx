@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   FlatList,
@@ -85,11 +86,13 @@ export default function EncomendasScreen() {
     <View style={styles.container}>
       {/* Cabeçalho */}
       <View style={styles.header}>
-        <Ionicons
-          name="arrow-back-outline"
-          size={28}
-          color="#4F5B66"
-        />
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons
+            name="arrow-back-outline"
+            size={28}
+            color="#4F5B66"
+          />
+        </TouchableOpacity>
 
         <View style={styles.headerText}>
           <Text style={styles.condominio}>
@@ -163,12 +166,24 @@ export default function EncomendasScreen() {
         />
       </View>
 
-      <FlatList
-        data={encomendasRetiradas}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        showsVerticalScrollIndicator={false}
-      />
+      {abaSelecionada === 'retiradas' ? (
+        <FlatList
+          data={encomendasRetiradas}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="package-outline" size={64} color="#ddd" />
+          <Text style={styles.emptyText}>
+            Nenhuma encomenda disponível
+          </Text>
+          <Text style={styles.emptySubtext}>
+            Verifique o separador de encomendas
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -289,6 +304,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginTop: 6,
+  },
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 100,
+  },
+
+  emptyText: {
+    fontSize: 16,
+    color: '#bbb',
+    marginTop: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+
+  emptySubtext: {
+    fontSize: 14,
+    color: '#ddd',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });
 
