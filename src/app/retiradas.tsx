@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '50%',
     height: 3,
-    backgroundColor: '#E83E8C',
+    backgroundColor: '#e49c15',
   },
 
   card: {

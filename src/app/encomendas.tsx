@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   indicador: {
     width: '50%',
     height: 3,
-    backgroundColor: '#E91E63',
+    backgroundColor: '#e49c15',
   },
 
   card: {
