@@ -80,10 +80,11 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     illustration: {
-        width: 220,
-        height: 220,
+        width: 280,
+        height: 280,
         resizeMode: "contain",
         marginBottom: 20,
+        transform: [{ scale: 1.5 }],
     },
     title: {
         fontSize: 36,

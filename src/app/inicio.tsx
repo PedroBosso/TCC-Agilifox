@@ -5,13 +5,14 @@ const Routes = {
     encomenda: './encomendas',
     telacad: './telaCad',
     comunicados: './comunicados',
+    ocorrencias: './ocorrencias',
 } as const;
 
 const menuItems = [
     { id: '1', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e49c15', route: Routes.comunicados },
     { id: '2', label: 'Minhas encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a842', route: Routes.encomenda },
     { id: '3', label: 'Meus visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c15', route: undefined },
-    { id: '4', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a842', route: undefined },
+    { id: '4', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a842', route: Routes.ocorrencias },
     { id: '5', label: 'Prestação de contas', icon: require('../../assets/images/contas.png'), color: '#e49c15', route: undefined },
     { id: '6', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: undefined },
     { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: undefined },
@@ -134,8 +135,8 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     userIcon: {
-        width: 28,
-        height: 28,
+        width: '150%',
+        height: '150%',
     },
     welcomeSection: {
         marginBottom: 24,
@@ -178,16 +179,17 @@ const styles = StyleSheet.create({
         transform: [{ scale: 0.98 }],
     },
     iconWrapper: {
-        width: 60,
-        height: 60,
+        width: 72,
+        height: 72,
         backgroundColor: 'rgba(255, 255, 255, 0.3)',
-        borderRadius: 12,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
     },
     image: {
-        width: '70%',
-        height: '70%',
+        width: '200%',
+        height: '200%',
         resizeMode: 'contain',
     },
     buttonText: {
