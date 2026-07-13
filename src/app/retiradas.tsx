@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 type EncomendaRetirada = {
@@ -175,7 +175,7 @@ export default function EncomendasScreen() {
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="package-outline" size={64} color="#ddd" />
+          <Ionicons name="cube-outline" size={64} color="#ddd" />
           <Text style={styles.emptyText}>
             Nenhuma encomenda disponível
           </Text>

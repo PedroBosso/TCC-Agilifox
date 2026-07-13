@@ -13,18 +13,18 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 // ---------- Configuração visual ----------
@@ -35,7 +35,7 @@ const CATEGORIAS = [
   { id: 'barulho', nome: 'Barulho', sigla: 'B', cor: '#7E57A6' },
   { id: 'limpeza', nome: 'Limpeza', sigla: 'L', cor: '#2F855A' },
   { id: 'outros', nome: 'Outros', sigla: 'O', cor: '#8A8377' },
-];
+] as const;
 
 const STATUS = {
   aberta: { nome: 'Aberta', cor: '#C0392B', fundo: '#FBEAE8' },
@@ -52,7 +52,22 @@ const FILTROS = [
 
 // ---------- Dados mockados ----------
 
-const MOCK_OCORRENCIAS = [
+type OcorrenciaStatus = 'aberta' | 'andamento' | 'resolvida';
+type OcorrenciaCategoria = 'manutencao' | 'seguranca' | 'barulho' | 'limpeza' | 'outros';
+
+type Ocorrencia = {
+  id: string;
+  titulo: string;
+  descricao: string;
+  categoria: OcorrenciaCategoria;
+  status: OcorrenciaStatus;
+  local: string;
+  data: string;
+};
+
+type NovaOcorrencia = Omit<Ocorrencia, 'id' | 'status' | 'data'>;
+
+const MOCK_OCORRENCIAS: Ocorrencia[] = [
   {
     id: '1',
     titulo: 'Vazamento no teto da garagem',
@@ -102,10 +117,10 @@ const MOCK_OCORRENCIAS = [
 
 // ---------- Helpers ----------
 
-function formatarData(isoString) {
+function formatarData(isoString: string) {
   const data = new Date(isoString);
   const agora = new Date();
-  const diffDias = Math.floor((agora - data) / (1000 * 60 * 60 * 24));
+  const diffDias = Math.floor((agora.getTime() - data.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDias === 0) return 'Hoje';
   if (diffDias === 1) return 'Ontem';
@@ -114,14 +129,14 @@ function formatarData(isoString) {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
-function getCategoria(id) {
+function getCategoria(id: OcorrenciaCategoria) {
   return CATEGORIAS.find((c) => c.id === id) ?? CATEGORIAS[CATEGORIAS.length - 1];
 }
 
 // ---------- Subcomponentes ----------
 
-function Selo({ status }) {
-  const config = STATUS[status as keyof typeof STATUS];
+function Selo({ status }: { status: OcorrenciaStatus }) {
+  const config = STATUS[status];
   return (
     <View style={[styles.selo, { backgroundColor: config.fundo }]}> 
       <View style={[styles.seloPonto, { backgroundColor: config.cor }]} />
@@ -130,9 +145,15 @@ function Selo({ status }) {
   );
 }
 
-function CartaoOcorrencia({ ocorrencia, onPress }) {
+function CartaoOcorrencia({
+  ocorrencia,
+  onPress,
+}: {
+  ocorrencia: Ocorrencia;
+  onPress: (ocorrencia: Ocorrencia) => void;
+}) {
   const categoria = getCategoria(ocorrencia.categoria);
-  const statusConfig = STATUS[ocorrencia.status as keyof typeof STATUS];
+  const statusConfig = STATUS[ocorrencia.status];
   return (
     <TouchableOpacity
       style={[styles.cartao, { borderLeftColor: statusConfig.cor }]}
@@ -164,7 +185,15 @@ function CartaoOcorrencia({ ocorrencia, onPress }) {
   );
 }
 
-function Chip({ label, ativo, onPress }) {
+function Chip({
+  label,
+  ativo,
+  onPress,
+}: {
+  label: string;
+  ativo: boolean;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
       style={[styles.chip, ativo && styles.chipAtivo]}
@@ -192,8 +221,16 @@ function EstadoVazio() {
 
 // ---------- Modal de nova ocorrência ----------
 
-function ModalNovaOcorrencia({ visivel, onFechar, onEnviar }) {
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState('manutencao');
+function ModalNovaOcorrencia({
+  visivel,
+  onFechar,
+  onEnviar,
+}: {
+  visivel: boolean;
+  onFechar: () => void;
+  onEnviar: (novaOcorrencia: NovaOcorrencia) => void;
+}) {
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState<OcorrenciaCategoria>('manutencao');
   const [titulo, setTitulo] = useState('');
   const [local, setLocal] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -248,7 +285,7 @@ function ModalNovaOcorrencia({ visivel, onFechar, onEnviar }) {
                       { borderColor: cat.cor },
                       ativa && { backgroundColor: cat.cor },
                     ]}
-                    onPress={() => setCategoriaSelecionada(cat.id)}
+                    onPress={() => setCategoriaSelecionada(cat.id as OcorrenciaCategoria)}
                   >
                     <Text
                       style={[
@@ -319,15 +356,19 @@ export default function TelaOcorrencias() {
 
   const ocorrenciasFiltradas = useMemo(() => {
     const lista =
-      filtroAtivo === 'todas' ? ocorrencias : ocorrencias.filter((o) => o.status === filtroAtivo);
+      filtroAtivo === 'todas'
+        ? ocorrencias
+        : ocorrencias.filter((o) => o.status === filtroAtivo);
 
-    return [...lista].sort((a, b) => new Date(b.data) - new Date(a.data));
+    return [...lista].sort((a, b) => {
+      return new Date(b.data).getTime() - new Date(a.data).getTime();
+    });
   }, [ocorrencias, filtroAtivo]);
 
   const totalAbertas = ocorrencias.filter((o) => o.status === 'aberta').length;
 
-  function handleNovaOcorrencia(novaOcorrencia) {
-    const ocorrenciaCompleta = {
+  function handleNovaOcorrencia(novaOcorrencia: NovaOcorrencia) {
+    const ocorrenciaCompleta: Ocorrencia = {
       ...novaOcorrencia,
       id: String(Date.now()),
       status: 'aberta',
@@ -336,7 +377,7 @@ export default function TelaOcorrencias() {
     setOcorrencias((atual) => [ocorrenciaCompleta, ...atual]);
   }
 
-  function handlePressCard(ocorrencia) {
+  function handlePressCard(ocorrencia: Ocorrencia) {
     // Espaço reservado para navegação futura até uma tela de detalhes, ex:
     // navigation.navigate('DetalheOcorrencia', { id: ocorrencia.id })
   }

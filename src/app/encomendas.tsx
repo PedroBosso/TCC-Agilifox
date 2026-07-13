@@ -168,7 +168,7 @@ export default function EncomendasScreen() {
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="package-outline" size={64} color="#ddd" />
+          <Ionicons name="cube-outline" size={64} color="#ddd" />
           <Text style={styles.emptyText}>
             Nenhuma encomenda {abaAtiva === 'disponiveis' ? 'disponível' : 'retirada'}
           </Text>
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   indicador: {
     width: '50%',
     height: 3,
-    backgroundColor: '#E91E63',
+    backgroundColor: '#e49c15',
   },
 
   card: {

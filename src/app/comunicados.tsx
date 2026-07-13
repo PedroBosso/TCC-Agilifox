@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useState, useEffect } from 'react';
 
 interface Comunicado {
   id: string;
@@ -28,8 +29,8 @@ export default function Comunicados() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.voltar}>←</Text>
+        <Pressable style={styles.backButton} onPress={() => router.push('./inicio')}>
+          <Ionicons name="chevron-back" size={24} color="#2B2823" />
         </Pressable>
         <Text style={styles.titulo}>Comunicados</Text>
         <View style={{ width: 32 }} />
@@ -80,6 +81,18 @@ const styles = StyleSheet.create({
   titulo: {
     fontSize: 22,
     fontWeight: 'bold',
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
   card: {
     backgroundColor: '#fff',

@@ -6,16 +6,19 @@ const Routes = {
     telacad: './telaCad',
     comunicados: './comunicados',
     ocorrencias: './ocorrencias',
+    meusvisitantes: './visitantes',
+    contas: './contas',
+    ambiente: './ambiente',
+    achadosperdidos: './achados',
 } as const;
 
 const menuItems = [
     { id: '1', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e49c15', route: Routes.comunicados },
     { id: '2', label: 'Minhas encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a842', route: Routes.encomenda },
-    { id: '3', label: 'Meus visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c15', route: undefined },
+    { id: '3', label: 'Meus visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c15', route: Routes.meusvisitantes },
     { id: '4', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a842', route: Routes.ocorrencias },
-    { id: '5', label: 'Prestação de contas', icon: require('../../assets/images/contas.png'), color: '#e49c15', route: undefined },
-    { id: '6', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: undefined },
-    { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: undefined },
+    { id: '5', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.ambiente },
+    { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
     { id: '8', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a842', route: undefined },
     { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: undefined },
     { id: '10', label: 'Cotas pendentes', icon: require('../../assets/images/cotas.png'), color: '#e8a842', route: undefined },
