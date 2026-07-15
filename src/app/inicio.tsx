@@ -23,9 +23,8 @@ const menuItems = [
     { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
     { id: '8', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a842', route: Routes.assembleia },
     { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.pagamentos },
-    { id: '10', label: 'Cotas pendentes', icon: require('../../assets/images/cotas.png'), color: '#e8a842', route: undefined },
-    { id: '11', label: 'Cadastro', icon: require('../../assets/images/pessoas.png'), color: '#e49c15', route: Routes.telacad },
-    { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a842', route: undefined }
+    { id: '11', label: 'Cadastro', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
+    { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: undefined }
 ];
 
 export default function Inicio(){
