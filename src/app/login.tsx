@@ -7,17 +7,24 @@ import { Senha } from '../../components/senha';
 const Routes = {
   inicio: './inicio',
   inicioSindico: './inicioSindico',
+  inicioPorteiro: './inicioPorteiro',
   cadastro: './cadastro',
 } as const;
 
 export default function Index() {
   const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
 
   function handleLogin() {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (normalizedEmail === 'sindico@condominio.com') {
+    if (normalizedEmail === 'sindico@condominio.com' && senha === 'sindico123') {
       router.push(Routes.inicioSindico);
+      return;
+    }
+
+    if (normalizedEmail === 'porteiro@condominio.com' && senha === 'porteiro123') {
+      router.push(Routes.inicioPorteiro);
       return;
     }
 
@@ -40,7 +47,7 @@ export default function Index() {
       {/* Formulário */}
       <View style={styles.formSection}>
         <Input value={email} onChangeText={setEmail} />
-        <Senha />
+        <Senha value={senha} onChangeText={setSenha} />
 
         <Pressable
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}

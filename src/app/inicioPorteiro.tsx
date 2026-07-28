@@ -2,44 +2,37 @@ import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    encomenda: './encomendas',
-    telacad: './telaCad',
-    comunicados: './comunicados',
-    ocorrencias: './ocorrencias',
-    meusvisitantes: './visitantes',
-    contas: './contas',
-    ambiente: './ambiente',
+    visitantes: './visitantesPortaria',
+    encomendas: './encomendasPortaria',
+    pets: './petsPorteiro',
+    moradores: './moradoresConsulta',
+    veiculos: './veiculosConsulta',
     achadosperdidos: './achados',
-    assembleia: './assembleias',
-    pagamentos: './pagamentos',
-    carros: './carros',
-    pets: './petsmorador',
+    ocorrencias: './ocorrenciasPortaria',
+    comunicados: './comunicados',
+    reservasHoje: './reservasHoje',
 } as const;
 
 const menuItems = [
-    { id: '1', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e49c42', route: Routes.comunicados },
-    { id: '2', label: 'Minhas encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomenda },
-    { id: '3', label: 'Meus visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.meusvisitantes },
-    { id: '4', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a815', route: Routes.ocorrencias },
-    { id: '5', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.ambiente },
-    { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
-    { id: '8', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a842', route: Routes.assembleia },
-    { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.pagamentos },
-    { id: '11', label: 'Gerenciamento de visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
-    { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
-    { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
-
-
+    { id: '1', label: 'Liberar visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.visitantes },
+    { id: '2', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomendas },
+    { id: '3', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e49c15', route: Routes.pets },
+    { id: '4', label: 'Consultar moradores', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.moradores },
+    { id: '5', label: 'Consultar veículos', icon: require('../../assets/images/carro.png'), color: '#e49c42', route: Routes.veiculos },
+    { id: '6', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e8a815', route: Routes.achadosperdidos },
+    { id: '7', label: 'Registrar ocorrência', icon: require('../../assets/images/aviso.png'), color: '#e49c15', route: Routes.ocorrencias },
+    { id: '8', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
+    { id: '9', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.reservasHoje },
 ];
 
-export default function Inicio(){
+export default function InicioPorteiro(){
     return (
         <View style={styles.container}>
            {/* Header fixo */}
            <View style={styles.header}>
                <View>
-                   <Text style={styles.headerLabel}>Seu Apartamento</Text>
-                   <Text style={styles.headerText}>Apto. 808 B</Text>
+                   <Text style={styles.headerLabel}>Painel da Portaria</Text>
+                   <Text style={styles.headerText}>Jardim das Flores</Text>
                </View>
                <View style={styles.iconGroup}>
                    <Image style={styles.int} source={require('../../assets/images/int.png')} />
@@ -57,8 +50,8 @@ export default function Inicio(){
            >
                {/* Welcome Section */}
                <View style={styles.welcomeSection}>
-                   <Text style={styles.welcomeText}>Bem vindo, Morador! 👋</Text>
-                   <Text style={styles.welcomeSubtext}>O que você gostaria de acessar?</Text>
+                   <Text style={styles.welcomeText}>Bem-vindo(a), Porteiro(a)! 👋</Text>
+                   <Text style={styles.welcomeSubtext}>O que você precisa fazer agora?</Text>
                </View>
 
                {/* Grid de Botões */}
