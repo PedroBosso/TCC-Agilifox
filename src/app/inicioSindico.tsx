@@ -2,43 +2,45 @@ import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    encomenda: './encomendas',
-    telacad: './telaCad',
     comunicados: './comunicados',
-    ocorrencias: './ocorrencias',
-    meusvisitantes: './visitantes',
-    contas: './contas',
-    ambiente: './ambiente',
+    ocorrencias: './ocorrenciasSindico',
+    prestacaoContas: './prestacaoContas',
+    financeiro: './financeiro',
+    ambiente: './ambienteSindico',
+    assembleia: './assembleiasSindico',
     achadosperdidos: './achados',
-    assembleia: './assembleias',
-    pagamentos: './pagamentos',
-    carros: './carros',
-    pets: './petsmorador'
+    carros: './carrosSindico',
+    moradores: './moradores',
+    pets: './petsPorteiro',
+    encomendas: './encomendasSindico',
+    visitantes: './visitantesSindico',
+    contas: './contas'
 } as const;
 
 const menuItems = [
     { id: '1', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e49c42', route: Routes.comunicados },
-    { id: '2', label: 'Minhas encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomenda },
-    { id: '3', label: 'Meus visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.meusvisitantes },
-    { id: '4', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a815', route: Routes.ocorrencias },
-    { id: '5', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.ambiente },
+    { id: '2', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a815', route: Routes.ocorrencias },
+    { id: '3', label: 'Prestação de Contas', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.prestacaoContas },
+    { id: '4', label: 'Financeiro', icon: require('../../assets/images/pagamentos.png'), color: '#e8a842', route: Routes.financeiro },
+    { id: '5', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.ambiente },
+    { id: '6', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a815', route: Routes.assembleia },
     { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
-    { id: '8', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a842', route: Routes.assembleia },
-    { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.pagamentos },
-    { id: '11', label: 'Gerenciamento de visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
-    { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
-    { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
-
+    { id: '8', label: 'Estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a842', route: Routes.carros },
+    { id: '9', label: 'Moradores', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.moradores },
+    { id: '10', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e8a815', route: Routes.pets },
+    { id: '11', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e49c15', route: Routes.encomendas },
+    { id: '12', label: 'Visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.visitantes },
+    { id: '12', label: 'Contas', icon: require('../../assets/images/contas.png'), color: '#e8a842', route: Routes.contas },
 ];
 
-export default function Inicio(){
+export default function InicioSindico(){
     return (
         <View style={styles.container}>
            {/* Header fixo */}
            <View style={styles.header}>
                <View>
-                   <Text style={styles.headerLabel}>Seu Apartamento</Text>
-                   <Text style={styles.headerText}>Apto. 808 B</Text>
+                   <Text style={styles.headerLabel}>Painel do Síndico</Text>
+                   <Text style={styles.headerText}>Jardim das Flores</Text>
                </View>
                <View style={styles.iconGroup}>
                    <Image style={styles.int} source={require('../../assets/images/int.png')} />
@@ -56,8 +58,8 @@ export default function Inicio(){
            >
                {/* Welcome Section */}
                <View style={styles.welcomeSection}>
-                   <Text style={styles.welcomeText}>Bem vindo, Morador! 👋</Text>
-                   <Text style={styles.welcomeSubtext}>O que você gostaria de acessar?</Text>
+                   <Text style={styles.welcomeText}>Bem-vindo(a), Síndico(a)! 👋</Text>
+                   <Text style={styles.welcomeSubtext}>O que você gostaria de gerenciar hoje?</Text>
                </View>
 
                {/* Grid de Botões */}

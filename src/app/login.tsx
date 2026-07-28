@@ -1,60 +1,66 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../components/input';
 import { Senha } from '../../components/senha';
 
 const Routes = {
-    inicio: './inicio',
-    cadastro: './cadastro',
+  inicio: './inicio',
+  inicioSindico: './inicioSindico',
+  cadastro: './cadastro',
 } as const;
 
-export default function Index(){ 
+export default function Index() {
+  const [email, setEmail] = useState('');
 
-    return (
-        <View style={styles.container}>
-            {/* Background decorativo */}
-            <View style={styles.decorativeCircle} />
-            
-            {/* Logo e título */}
-            <View style={styles.headerSection}>
-                <Image
-                    source={require("../../assets/images/logo.png")}
-                    style={styles.illustration}
-                />
-                <Text style={styles.title}>Bem vindo</Text>
-                <Text style={styles.subtitle}>Faça seu login para continuar</Text>
-            </View>
+  function handleLogin() {
+    const normalizedEmail = email.trim().toLowerCase();
 
-            {/* Formulário */}
-            <View style={styles.formSection}>
-                <Input />
-                <Senha />
+    if (normalizedEmail === 'sindico@condominio.com') {
+      router.push(Routes.inicioSindico);
+      return;
+    }
 
-                <Pressable 
-                    style={({ pressed }) => [
-                        styles.button,
-                        pressed && styles.buttonPressed
-                    ]} 
-                    onPress={() => router.push(Routes.inicio)}
-                >
-                    <Text style={styles.buttonText}>Login</Text>
-                </Pressable>
-            </View>
+    // Qualquer outro e-mail acessa a tela padrão de início
+    router.push(Routes.inicio);
+  }
 
-            {/* Footer com link cadastro */}
-            <View style={styles.footerSection}>
-                <Text style={styles.footerText}>
-                    Não tem uma conta? 
-                    <Text 
-                        style={styles.linkText} 
-                        onPress={() => router.push(Routes.cadastro)}
-                    >
-                        {' '}Cadastre-se aqui
-                    </Text>
-                </Text>
-            </View>
-        </View>
-    )
+  return (
+    <View style={styles.container}>
+      {/* Background decorativo */}
+      <View style={styles.decorativeCircle} />
+
+      {/* Logo e título */}
+      <View style={styles.headerSection}>
+        <Image source={require('../../assets/images/logo.png')} style={styles.illustration} />
+        <Text style={styles.title}>Bem vindo</Text>
+        <Text style={styles.subtitle}>Faça seu login para continuar</Text>
+      </View>
+
+      {/* Formulário */}
+      <View style={styles.formSection}>
+        <Input value={email} onChangeText={setEmail} />
+        <Senha />
+
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          onPress={handleLogin}
+        >
+          <Text style={styles.buttonText}>Login</Text>
+        </Pressable>
+      </View>
+
+      {/* Footer com link cadastro */}
+      <View style={styles.footerSection}>
+        <Text style={styles.footerText}>
+          Não tem uma conta?
+          <Text style={styles.linkText} onPress={() => router.push(Routes.cadastro)}>
+            {' '}Cadastre-se aqui
+          </Text>
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
