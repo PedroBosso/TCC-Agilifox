@@ -2,27 +2,25 @@ import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    visitantes: './visitantesPortaria',
-    encomendas: './encomendasPortaria',
+    encomendas: './encomendasPorteiro',
     pets: './petsPorteiro',
-    moradores: './moradoresConsulta',
+    acessos: './acesso',
     veiculos: './veiculosConsulta',
     achadosperdidos: './achados',
     ocorrencias: './ocorrenciasPortaria',
     comunicados: './comunicados',
-    reservasHoje: './reservasHoje',
+    reservasHoje: './reservaLocal',
 } as const;
 
 const menuItems = [
-    { id: '1', label: 'Liberar visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.visitantes },
-    { id: '2', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomendas },
-    { id: '3', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e49c15', route: Routes.pets },
-    { id: '4', label: 'Consultar moradores', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.moradores },
-    { id: '5', label: 'Consultar veículos', icon: require('../../assets/images/carro.png'), color: '#e49c42', route: Routes.veiculos },
-    { id: '6', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e8a815', route: Routes.achadosperdidos },
-    { id: '7', label: 'Registrar ocorrência', icon: require('../../assets/images/aviso.png'), color: '#e49c15', route: Routes.ocorrencias },
-    { id: '8', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
-    { id: '9', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.reservasHoje },
+    { id: '1', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomendas },
+    { id: '2', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e49c15', route: Routes.pets },
+    { id: '3', label: 'Acessos', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.acessos },
+    { id: '4', label: 'Consultar veículos', icon: require('../../assets/images/carro.png'), color: '#e49c42', route: Routes.veiculos },
+    { id: '5', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e8a815', route: Routes.achadosperdidos },
+    { id: '6', label: 'Registrar ocorrência', icon: require('../../assets/images/aviso.png'), color: '#e49c15', route: Routes.ocorrencias },
+    { id: '7', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
+    { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.reservasHoje },
 ];
 
 export default function InicioPorteiro(){
