@@ -2,19 +2,19 @@ import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    comunicados: './comunicados',
-    ocorrencias: './ocorrenciasSindico',
-    prestacaoContas: './prestacaoContas',
-    financeiro: './financeiro',
-    ambiente: './ambienteSindico',
-    assembleia: './assembleiasSindico',
-    achadosperdidos: './achados',
-    carros: './carrosSindico',
-    moradores: './moradores',
-    pets: './petsPorteiro',
-    encomendas: './encomendasSindico',
-    visitantes: './visitantesSindico',
-    contas: './contas'
+    comunicados: './comunicados',//feito
+    ocorrencias: './ocorrenciasSindico',//fazer tela
+    prestacaoContas: './prestacaoContas',//fazer tela
+    financeiro: './financeiro',//fazer tela
+    ambiente: './ambienteSindico',//fazer tela
+    assembleia: './assembleiasSindico',//fazer tela
+    achadosperdidos: './achados',//feito
+    carros: './carrosSindico',//fazer tela
+    moradores: './moradores',//fazer tela
+    pets: './petsSindico',//fazer tela
+    encomendas: './encomendasSindico',//reutilizar
+    visitantes: './visitantesSindico',//reutilizar
+    contas: './contas'//fazer tela
 } as const;
 
 const menuItems = [

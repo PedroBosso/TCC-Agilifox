@@ -2,14 +2,14 @@ import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 const Routes = {
-    encomendas: './encomendasPorteiro',
-    pets: './petsPorteiro',
-    acessos: './acesso',
-    veiculos: './veiculosConsulta',
-    achadosperdidos: './achados',
-    ocorrencias: './ocorrenciasPortaria',
-    comunicados: './comunicados',
-    reservasHoje: './reservaLocal',
+    encomendas: './encomendasPorteiro',//feito
+    pets: './petsporteiro',//feito
+    acessos: './acesso',//feito
+    veiculos: './veiculosConsulta',//fazer tela
+    achadosperdidos: './achados',//feito
+    ocorrencias: './ocorrenciasPorteiro',//feito
+    comunicados: './comunicados',//feito
+    reservasHoje: './reservaLocal',//feito
 } as const;
 
 const menuItems = [

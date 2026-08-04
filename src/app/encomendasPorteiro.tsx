@@ -1,12 +1,12 @@
 /**
  * CadastrarEncomendaPorteiro.tsx
  *
- * Tela para o porteiro registrar a chegada de encomendas para os moradores.
+ * Tela para o porteiro registrar a chegada de encomendas aos moradores.
  */
 
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function CadastrarEncomendaPorteiro() {
     const [morador, setMorador] = useState('');
@@ -21,7 +21,7 @@ export default function CadastrarEncomendaPorteiro() {
             return;
         }
 
-        alert(`Encomenda cadastrada com sucesso para o Apto ${apartamento}! (Simulação)`);
+        alert(`Encomenda cadastrada com sucesso para o apartamento ${apartamento}! (Simulação)`);
         setMorador('');
         setApartamento('');
         setCodigo('');
@@ -77,10 +77,10 @@ export default function CadastrarEncomendaPorteiro() {
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Código de Rastreio / Etiqueta (Opcional)</Text>
+                        <Text style={styles.label}>Código de rastreio / etiqueta (opcional)</Text>
                         <TextInput 
                             style={styles.input}
-                            placeholder="Ex: BR123456789BR ou Nº do pacote"
+                            placeholder="Ex: BR123456789BR ou número do pacote"
                             placeholderTextColor="#999"
                             value={codigo}
                             onChangeText={setCodigo}
@@ -88,7 +88,7 @@ export default function CadastrarEncomendaPorteiro() {
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Empresa / Transportadora</Text>
+                        <Text style={styles.label}>Empresa / transportadora</Text>
                         <TextInput 
                             style={styles.input}
                             placeholder="Ex: Correios, Mercado Livre, Amazon"
@@ -118,7 +118,7 @@ export default function CadastrarEncomendaPorteiro() {
                         ]}
                         onPress={handleCadastrar}
                     >
-                        <Text style={styles.submitButtonText}>Cadastrar e Avisar Morador</Text>
+                        <Text style={styles.submitButtonText}>Cadastrar e avisar morador</Text>
                     </Pressable>
                 </View>
 
