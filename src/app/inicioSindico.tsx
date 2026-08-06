@@ -3,34 +3,34 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 const Routes = {
     comunicados: './comunicados',//feito
-    ocorrencias: './ocorrenciasSindico',//fazer tela
-    prestacaoContas: './prestacaoContas',//fazer tela
+    ocorrencias: './ocorrencias',//feito
     financeiro: './financeiro',//fazer tela
     ambiente: './ambienteSindico',//fazer tela
     assembleia: './assembleiasSindico',//fazer tela
     achadosperdidos: './achados',//feito
-    carros: './carrosSindico',//fazer tela
+    carros: './carrossindico',//feito
     moradores: './moradores',//fazer tela
     pets: './petsSindico',//fazer tela
-    encomendas: './encomendasSindico',//reutilizar
-    visitantes: './visitantesSindico',//reutilizar
-    contas: './contas'//fazer tela
+    encomendas: './encomendas',//feito
+    visitantes: './visitantes',//feito
+    contas: './contas',//feito
+    cameras: './camerasS',//feito
 } as const;
 
 const menuItems = [
     { id: '1', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e49c42', route: Routes.comunicados },
     { id: '2', label: 'Ocorrências', icon: require('../../assets/images/aviso.png'), color: '#e8a815', route: Routes.ocorrencias },
-    { id: '3', label: 'Prestação de Contas', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.prestacaoContas },
-    { id: '4', label: 'Financeiro', icon: require('../../assets/images/pagamentos.png'), color: '#e8a842', route: Routes.financeiro },
-    { id: '5', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.ambiente },
-    { id: '6', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a815', route: Routes.assembleia },
-    { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
-    { id: '8', label: 'Estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a842', route: Routes.carros },
-    { id: '9', label: 'Moradores', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.moradores },
-    { id: '10', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e8a815', route: Routes.pets },
-    { id: '11', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e49c15', route: Routes.encomendas },
-    { id: '12', label: 'Visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.visitantes },
+    { id: '3', label: 'Financeiro', icon: require('../../assets/images/pagamentos.png'), color: '#e8a842', route: Routes.financeiro },
+    { id: '4', label: 'Reservas de ambiente', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.ambiente },
+    { id: '5', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a815', route: Routes.assembleia },
+    { id: '6', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
+    { id: '7', label: 'Estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a842', route: Routes.carros },
+    { id: '8', label: 'Moradores', icon: require('../../assets/images/moradores.png'), color: '#e49c42', route: Routes.moradores },
+    { id: '9', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e8a815', route: Routes.pets },
+    { id: '10', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e49c15', route: Routes.encomendas },
+    { id: '11', label: 'Visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.visitantes },
     { id: '12', label: 'Contas', icon: require('../../assets/images/contas.png'), color: '#e8a842', route: Routes.contas },
+    { id: '13', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
 ];
 
 export default function InicioSindico(){

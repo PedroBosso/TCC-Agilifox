@@ -5,11 +5,12 @@ const Routes = {
     encomendas: './encomendasPorteiro',//feito
     pets: './petsporteiro',//feito
     acessos: './acesso',//feito
-    veiculos: './veiculosConsulta',//fazer tela
+    veiculos: './estacionamentoPorteiro',//feito
     achadosperdidos: './achados',//feito
     ocorrencias: './ocorrenciasPorteiro',//feito
     comunicados: './comunicados',//feito
     reservasHoje: './reservaLocal',//feito
+    cameras: './camerasP',//feito
 } as const;
 
 const menuItems = [
@@ -20,7 +21,8 @@ const menuItems = [
     { id: '5', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e8a815', route: Routes.achadosperdidos },
     { id: '6', label: 'Registrar ocorrência', icon: require('../../assets/images/aviso.png'), color: '#e49c15', route: Routes.ocorrencias },
     { id: '7', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
-    { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e49c42', route: Routes.reservasHoje },
+    { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.reservasHoje },
+    { id: '9', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
 ];
 
 export default function InicioPorteiro(){
