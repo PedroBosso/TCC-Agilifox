@@ -11,6 +11,7 @@ const Routes = {
     comunicados: './comunicados',//feito
     reservasHoje: './reservaLocal',//feito
     cameras: './camerasP',//feito
+    panico: './botaoPanicoPortaria',//feito
 } as const;
 
 const menuItems = [
@@ -23,6 +24,7 @@ const menuItems = [
     { id: '7', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
     { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.reservasHoje },
     { id: '9', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
+    { id: '10', label: 'Alerta de pânico', icon: require('../../assets/images/panico.png'), color: '#e8a815', route: Routes.panico },
 ];
 
 export default function InicioPorteiro(){

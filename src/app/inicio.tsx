@@ -14,6 +14,7 @@ const Routes = {
     pagamentos: './pagamentos',
     carros: './carros',
     pets: './petsmorador',
+    panico: './panico',
 } as const;
 
 const menuItems = [
@@ -48,6 +49,22 @@ export default function Inicio(){
                    </View>
                </View>
            </View>
+           
+           {/* Faixa discreta de acesso ao botão de pânico — fica fixa, fora do
+               ScrollView, para continuar acessível mesmo com a tela rolada */}
+           <Pressable
+               style={({ pressed }) => [styles.faixaPanico, pressed && styles.faixaPanicoPressionada]}
+               onPress={() => router.push(Routes.panico)}
+               accessibilityRole="button"
+               accessibilityLabel="Acionar botão de pânico em caso de emergência"
+           >
+               <View style={styles.faixaPanicoIconeWrapper}>
+                   <Text style={styles.faixaPanicoIcone}>!</Text>
+               </View>
+               <Text style={styles.faixaPanicoTexto}>Em caso de emergência, toque aqui</Text>
+               <Text style={styles.faixaPanicoSeta}>›</Text>
+           </Pressable>
+ 
 
            {/* Conteúdo scrollável */}
            <ScrollView 
@@ -211,5 +228,44 @@ const styles = StyleSheet.create({
     },
     bottomPadding: {
         height: 20,
+    },
+       faixaPanico: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fbeaea',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(192, 57, 43, 0.15)',
+    },
+    faixaPanicoPressionada: {
+        opacity: 0.8,
+    },
+    faixaPanicoIconeWrapper: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#c0392b',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+    faixaPanicoIcone: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    faixaPanicoTexto: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#8b3329',
+    },
+    faixaPanicoSeta: {
+        fontSize: 18,
+        color: '#c0392b',
+        fontWeight: '600',
     },
 });
