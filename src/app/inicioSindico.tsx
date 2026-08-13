@@ -6,15 +6,16 @@ const Routes = {
     ocorrencias: './ocorrencias',//feito
     financeiro: './financeiro',//fazer tela
     ambiente: './ambienteSindico',//fazer tela
-    assembleia: './assembleiasSindico',//fazer tela
+    assembleia: './assembleiaSindico',//feito
     achadosperdidos: './achados',//feito
     carros: './carrossindico',//feito
-    moradores: './moradores',//fazer tela
+    moradores: './moradores',//feito
     pets: './petsSindico',//fazer tela
     encomendas: './encomendas',//feito
     visitantes: './visitantes',//feito
     contas: './contas',//feito
     cameras: './camerasS',//feito
+    enquete: './telaenqueteS',//feito
 } as const;
 
 const menuItems = [
@@ -31,6 +32,7 @@ const menuItems = [
     { id: '11', label: 'Visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.visitantes },
     { id: '12', label: 'Contas', icon: require('../../assets/images/contas.png'), color: '#e8a842', route: Routes.contas },
     { id: '13', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
+    { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a842', route: Routes.enquete },
 ];
 
 export default function InicioSindico(){

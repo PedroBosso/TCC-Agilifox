@@ -15,6 +15,7 @@ const Routes = {
     carros: './carros',
     pets: './petsmorador',
     panico: './panico',
+    enquetes: './telaenqueteM',
 } as const;
 
 const menuItems = [
@@ -29,6 +30,7 @@ const menuItems = [
     { id: '11', label: 'Gerenciamento de visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
     { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
     { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
+    { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a815', route: Routes.enquetes },
 
 
 ];
