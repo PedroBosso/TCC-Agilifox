@@ -5,7 +5,7 @@ const Routes = {
     comunicados: './comunicados',//feito
     ocorrencias: './ocorrencias',//feito
     financeiro: './financeiro',//fazer tela
-    ambiente: './ambienteSindico',//fazer tela
+    ambiente: './ambienteS',//feito
     assembleia: './assembleiaSindico',//feito
     achadosperdidos: './achados',//feito
     carros: './carrossindico',//feito
