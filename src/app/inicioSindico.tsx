@@ -4,7 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 const Routes = {
     comunicados: './comunicados',//feito
     ocorrencias: './ocorrencias',//feito
-    financeiro: './financeiro',//fazer tela
+    financeiro: './financeiro',//feito
     ambiente: './ambienteS',//feito
     assembleia: './assembleiaSindico',//feito
     achadosperdidos: './achados',//feito
