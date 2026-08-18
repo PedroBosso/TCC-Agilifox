@@ -10,7 +10,7 @@ const Routes = {
     achadosperdidos: './achados',//feito
     carros: './carrossindico',//feito
     moradores: './moradores',//feito
-    pets: './petsSindico',//fazer tela
+    pets: './petsSindico',//feito
     encomendas: './encomendas',//feito
     visitantes: './visitantes',//feito
     contas: './contas',//feito
