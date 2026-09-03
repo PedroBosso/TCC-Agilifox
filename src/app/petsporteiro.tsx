@@ -1,16 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  FlatList,
+  Linking,
   SafeAreaView,
-  View,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
   Text,
   TextInput,
-  FlatList,
   TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  Linking,
+  View,
 } from 'react-native';
+
 
 // ---------- Tipos ----------
 

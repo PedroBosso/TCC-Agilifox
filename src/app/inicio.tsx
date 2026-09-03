@@ -1,5 +1,8 @@
 import { router } from 'expo-router';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MenuPerfilPopup from '../components/MenuPerfilPopup';
+import { supabase } from '../lib/supabase';
 
 const Routes = {
     encomenda: './encomendas',
@@ -16,6 +19,7 @@ const Routes = {
     pets: './petsmorador',
     panico: './panico',
     enquetes: './telaenqueteM',
+    configuracoes: './telaconfig',
 } as const;
 
 const menuItems = [
@@ -31,24 +35,56 @@ const menuItems = [
     { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
     { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
     { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a815', route: Routes.enquetes },
-
-
 ];
 
+interface PerfilResumo {
+    nome: string;
+    apto: string | null;
+    fotoUrl: string | null;
+}
+
 export default function Inicio(){
+    const [perfil, setPerfil] = useState<PerfilResumo | null>(null);
+    const [popupVisivel, setPopupVisivel] = useState(false);
+
+    useEffect(() => {
+        carregarPerfil();
+    }, []);
+
+    async function carregarPerfil() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+            .from('profiles')
+            .select('nome, apto, foto_url')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (data) {
+            setPerfil({ nome: data.nome, apto: data.apto, fotoUrl: data.foto_url });
+        }
+    }
+
     return (
         <View style={styles.container}>
            {/* Header fixo */}
            <View style={styles.header}>
                <View>
                    <Text style={styles.headerLabel}>Seu Apartamento</Text>
-                   <Text style={styles.headerText}>Apto. 808 B</Text>
+                   <Text style={styles.headerText}>{perfil?.apto ?? '...'}</Text>
                </View>
                <View style={styles.iconGroup}>
                    <Image style={styles.int} source={require('../../assets/images/int.png')} />
-                   <View style={styles.userIconWrapper}>
-                       <Image style={styles.userIcon} source={require('../../assets/images/user.png')} />
-                   </View>
+                   <TouchableOpacity onPress={() => setPopupVisivel(true)} activeOpacity={0.8}>
+                       <View style={styles.userIconWrapper}>
+                           {perfil?.fotoUrl ? (
+                               <Image source={{ uri: perfil.fotoUrl }} style={styles.userIcon} />
+                           ) : (
+                               <Image style={styles.userIcon} source={require('../../assets/images/user.png')} />
+                           )}
+                       </View>
+                   </TouchableOpacity>
                </View>
            </View>
            
@@ -76,7 +112,7 @@ export default function Inicio(){
            >
                {/* Welcome Section */}
                <View style={styles.welcomeSection}>
-                   <Text style={styles.welcomeText}>Bem vindo, Morador! 👋</Text>
+                   <Text style={styles.welcomeText}>Bem vindo, {perfil?.nome?.split(' ')[0] ?? 'Morador'}! 👋</Text>
                    <Text style={styles.welcomeSubtext}>O que você gostaria de acessar?</Text>
                </View>
 
@@ -103,6 +139,14 @@ export default function Inicio(){
                {/* Espaço extra ao final para padding */}
                <View style={styles.bottomPadding} />
            </ScrollView>
+
+           <MenuPerfilPopup
+               visivel={popupVisivel}
+               onFechar={() => setPopupVisivel(false)}
+               nome={perfil?.nome ?? 'Morador'}
+               fotoUrl={perfil?.fotoUrl}
+               rotaConfiguracoes={Routes.configuracoes}
+           />
         </View>
     )
 }
@@ -157,6 +201,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#e49c15',
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
         shadowColor: '#e49c15',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
@@ -164,8 +209,8 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     userIcon: {
-        width: '150%',
-        height: '150%',
+        width: '100%',
+        height: '100%',
     },
     welcomeSection: {
         marginBottom: 24,
