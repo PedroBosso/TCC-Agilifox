@@ -1,21 +1,23 @@
-
-
-import React, { useMemo, useState } from 'react';
+// Tela de Enquetes para o síndico — publica e gerencia enquetes no Supabase (enquetes, opcoes_enquete).
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-// ---------- Tipos ----------
+// Tipos 
 
 type StatusEnquete = 'ativa' | 'encerrada';
 type Aba = 'nova' | 'gerenciar';
@@ -36,7 +38,7 @@ interface Enquete {
   encerradaManualmente?: boolean;
 }
 
-// ---------- Helpers ----------
+// Helpers 
 
 function addDias(data: Date, dias: number): Date {
   const nova = new Date(data);
@@ -76,49 +78,8 @@ function percentual(opcao: OpcaoEnquete, total: number): number {
   return total > 0 ? opcao.votos / total : 0;
 }
 
-// ---------- Dados mockados ----------
 
-function gerarEnquetesMock(agora: Date): Enquete[] {
-  return [
-    {
-      id: 'e1',
-      titulo: 'Reforma do playground',
-      descricao: 'Proposta de reforma completa do playground, incluindo piso emborrachado e novos brinquedos.',
-      dataFimISO: addDias(agora, 5).toISOString(),
-      anonima: true,
-      opcoes: [
-        { id: 'o1', texto: 'Aprovo a reforma', votos: 34 },
-        { id: 'o2', texto: 'Não aprovo', votos: 9 },
-        { id: 'o3', texto: 'Preciso de mais informações', votos: 12 },
-      ],
-    },
-    {
-      id: 'e2',
-      titulo: 'Troca da empresa de portaria',
-      descricao: 'Escolha entre as duas propostas apresentadas na última assembleia.',
-      dataFimISO: addDias(agora, 2).toISOString(),
-      anonima: false,
-      opcoes: [
-        { id: 'o4', texto: 'Empresa A - SegurançaTotal', votos: 41 },
-        { id: 'o5', texto: 'Empresa B - VigilantePlus', votos: 27 },
-      ],
-    },
-    {
-      id: 'e3',
-      titulo: 'Horário de silêncio nos finais de semana',
-      descricao: 'Definir novo horário de silêncio para sábados e domingos.',
-      dataFimISO: addDias(agora, -10).toISOString(),
-      anonima: true,
-      opcoes: [
-        { id: 'o6', texto: 'Manter às 22h', votos: 52 },
-        { id: 'o7', texto: 'Alterar para 23h', votos: 38 },
-        { id: 'o8', texto: 'Alterar para 21h', votos: 6 },
-      ],
-    },
-  ];
-}
-
-// ---------- Subcomponentes ----------
+// Subcomponentes 
 
 function Selo({ texto, cor, fundo }: { texto: string; cor: string; fundo: string }) {
   return (
@@ -223,14 +184,15 @@ function EstadoVazio() {
   );
 }
 
-// ---------- Tela principal ----------
+// Tela principal 
 
 export default function TelaEnquetesSindico() {
   const referencia = useMemo(() => new Date(), []);
   const diasDisponiveis = useMemo(() => Array.from({ length: 30 }, (_, i) => addDias(referencia, i + 1)), [referencia]);
 
   const [abaAtiva, setAbaAtiva] = useState<Aba>('nova');
-  const [enquetes, setEnquetes] = useState<Enquete[]>(() => gerarEnquetesMock(referencia));
+  const [carregando, setCarregando] = useState(true);
+  const [enquetes, setEnquetes] = useState<Enquete[]>([]);
 
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -238,6 +200,39 @@ export default function TelaEnquetesSindico() {
   const [novaOpcaoTexto, setNovaOpcaoTexto] = useState('');
   const [dataFimSelecionada, setDataFimSelecionada] = useState<Date | null>(null);
   const [anonima, setAnonima] = useState(true);
+
+  useEffect(() => {
+    carregarEnquetes();
+  }, []);
+
+  async function carregarEnquetes() {
+    const { data, error } = await supabase
+      .from('enquetes')
+      .select('id, titulo, descricao, data_fim, anonima, encerrada_manualmente, opcoes_enquete(id, texto, ordem, votos)')
+      .order('data_fim', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as enquetes.');
+      setCarregando(false);
+      return;
+    }
+
+    setEnquetes(
+      (data ?? []).map((e: any) => ({
+        id: e.id,
+        titulo: e.titulo,
+        descricao: e.descricao ?? '',
+        dataFimISO: e.data_fim,
+        anonima: e.anonima,
+        encerradaManualmente: e.encerrada_manualmente,
+        opcoes: (e.opcoes_enquete ?? [])
+          .slice()
+          .sort((a: any, b: any) => a.ordem - b.ordem)
+          .map((o: any) => ({ id: o.id, texto: o.texto, votos: o.votos })),
+      }))
+    );
+    setCarregando(false);
+  }
 
   const enquetesOrdenadas = useMemo(
     () => [...enquetes].sort((a, b) => new Date(b.dataFimISO).getTime() - new Date(a.dataFimISO).getTime()),
@@ -266,16 +261,47 @@ export default function TelaEnquetesSindico() {
     setAnonima(true);
   }
 
-  function handlePublicar() {
+  async function handlePublicar() {
     if (!podePublicar || !dataFimSelecionada) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: enqueteCriada, error } = await supabase
+      .from('enquetes')
+      .insert({
+        titulo: titulo.trim(),
+        descricao: descricao.trim() || null,
+        data_fim: dataFimSelecionada.toISOString(),
+        anonima,
+        criado_por: user.id,
+      })
+      .select()
+      .single();
+
+    if (error || !enqueteCriada) {
+      Alert.alert('Erro', 'Não foi possível publicar a enquete.');
+      return;
+    }
+
+    const { data: opcoesInseridas, error: erroOpcoes } = await supabase
+      .from('opcoes_enquete')
+      .insert(opcoes.map((texto, indice) => ({ enquete_id: enqueteCriada.id, texto, ordem: indice })))
+      .select();
+
+    if (erroOpcoes) {
+      Alert.alert('Erro', 'A enquete foi criada, mas não foi possível salvar as opções.');
+    }
+
     const novaEnquete: Enquete = {
-      id: String(Date.now()),
-      titulo: titulo.trim(),
-      descricao: descricao.trim(),
-      dataFimISO: dataFimSelecionada.toISOString(),
-      anonima,
-      opcoes: opcoes.map((texto, indice) => ({ id: `nova-${Date.now()}-${indice}`, texto, votos: 0 })),
+      id: enqueteCriada.id,
+      titulo: enqueteCriada.titulo,
+      descricao: enqueteCriada.descricao ?? '',
+      dataFimISO: enqueteCriada.data_fim,
+      anonima: enqueteCriada.anonima,
+      opcoes: (opcoesInseridas ?? []).map((o) => ({ id: o.id, texto: o.texto, votos: o.votos })),
     };
 
     setEnquetes((atual) => [novaEnquete, ...atual]);
@@ -283,8 +309,24 @@ export default function TelaEnquetesSindico() {
     setAbaAtiva('gerenciar');
   }
 
-  function handleEncerrarAgora(id: string) {
+  async function handleEncerrarAgora(id: string) {
+    const { error } = await supabase.from('enquetes').update({ encerrada_manualmente: true }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível encerrar a votação.');
+      return;
+    }
     setEnquetes((atual) => atual.map((e) => (e.id === id ? { ...e, encerradaManualmente: true } : e)));
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.listaVaziaContainer}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -423,7 +465,7 @@ export default function TelaEnquetesSindico() {
   );
 }
 
-// ---------- Estilos ----------
+// Estilos 
 
 const styles = StyleSheet.create({
   tela: {

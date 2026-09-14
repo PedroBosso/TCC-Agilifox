@@ -51,6 +51,9 @@ seu editor, copie todo o conteúdo, cole no SQL Editor do Supabase e clique em
 4. [`supabase/migrations/0004_seed.sql`](supabase/migrations/0004_seed.sql) — dados iniciais opcionais
    (categorias financeiras e alguns ambientes padrão), só para as telas não
    nascerem vazias. Rode só uma vez — não tem proteção contra duplicidade.
+5. [`supabase/migrations/0005_profiles_email.sql`](supabase/migrations/0005_profiles_email.sql) — adiciona
+   coluna de e-mail em `profiles` (necessária para a tela de gestão de
+   moradores do síndico conseguir mostrar o e-mail de terceiros).
 
 Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 (normalmente indica que um passo anterior não rodou por completo).

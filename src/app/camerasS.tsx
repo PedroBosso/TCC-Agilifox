@@ -1,28 +1,8 @@
-/**
- * TelaCamerasSindico.tsx
- *
- * Tela de câmeras para o síndico. Além de visualizar os feeds, como na
- * portaria em TelaCamerasPorteiro.tsx, o síndico também pode cadastrar,
- * editar, ativar/desativar e remover câmeras do condomínio.
- *
- * Front-end apenas — os dados abaixo são simulados (MOCK_CAMERAS). Como não
- * há um back-end de streaming conectado, cada câmera é representada por um
- * marcador visual (com indicador "AO VIVO" e relógio) no lugar do vídeo real.
- *
- * Para integrar com um streaming real depois, o lugar mais natural é dentro
- * de <CameraFeed>: troque o marcador pelo player de vídeo (ex.: react-native-video
- * ou um WebView apontando para o stream HLS/RTSP salvo em `camera.urlStream`).
- *
- * Para integrar com o back-end depois, basta substituir:
- *   1. O estado inicial de `cameras` por uma chamada à API (useEffect + fetch/axios)
- *   2. `handleSalvarCamera` e `handleRemoverCamera` por chamadas POST/PATCH/DELETE
- *      para o seu endpoint
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Câmeras do síndico — visualiza os feeds (como a portaria) e cadastra, edita, ativa/desativa e remove câmeras.
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     FlatList,
     KeyboardAvoidingView,
@@ -37,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -47,7 +28,7 @@ type Aba = 'visualizar' | 'gerenciar';
 interface Camera {
   id: string;
   nome: string;
-  area: Area;
+  area: Area | null;
   urlStream: string;
   ativa: boolean;
   online: boolean;
@@ -62,25 +43,16 @@ const CONFIG_AREA: Record<Area, { nome: string; cor: string }> = {
   seguranca: { nome: 'Segurança', cor: '#C0392B' },
 };
 
+function configArea(area: Area | null): { nome: string; cor: string } {
+  return area ? CONFIG_AREA[area] : { nome: 'Sem área', cor: '#8A8377' };
+}
+
 const FILTROS: { id: FiltroArea; nome: string }[] = [
   { id: 'todas', nome: 'Todas' },
   { id: 'entrada', nome: 'Entrada' },
   { id: 'garagem', nome: 'Garagem' },
   { id: 'areas_comuns', nome: 'Áreas comuns' },
   { id: 'seguranca', nome: 'Segurança' },
-];
-
-// ---------- Dados mockados ----------
-
-const MOCK_CAMERAS: Camera[] = [
-  { id: 'c1', nome: 'Portaria Principal', area: 'entrada', urlStream: 'rtsp://192.168.0.10/portaria', ativa: true, online: true },
-  { id: 'c2', nome: 'Portão de Veículos', area: 'entrada', urlStream: 'rtsp://192.168.0.11/portao-veiculos', ativa: true, online: true },
-  { id: 'c3', nome: 'Garagem - Subsolo 1', area: 'garagem', urlStream: 'rtsp://192.168.0.12/garagem-1', ativa: true, online: true },
-  { id: 'c4', nome: 'Garagem - Subsolo 2', area: 'garagem', urlStream: 'rtsp://192.168.0.13/garagem-2', ativa: true, online: false },
-  { id: 'c5', nome: 'Elevador Social - Bloco A', area: 'areas_comuns', urlStream: 'rtsp://192.168.0.14/elevador-a', ativa: true, online: true },
-  { id: 'c6', nome: 'Piscina', area: 'areas_comuns', urlStream: 'rtsp://192.168.0.15/piscina', ativa: true, online: true },
-  { id: 'c7', nome: 'Playground', area: 'areas_comuns', urlStream: 'rtsp://192.168.0.16/playground', ativa: true, online: true },
-  { id: 'c8', nome: 'Portão dos Fundos', area: 'seguranca', urlStream: 'rtsp://192.168.0.17/fundos', ativa: true, online: false },
 ];
 
 // ---------- Helpers ----------
@@ -177,7 +149,7 @@ interface CartaoCameraGridProps {
 }
 
 function CartaoCameraGrid({ camera, onPress }: CartaoCameraGridProps) {
-  const config = CONFIG_AREA[camera.area];
+  const config = configArea(camera.area);
   return (
     <TouchableOpacity style={styles.cartaoGrid} onPress={onPress} activeOpacity={0.85}>
       <CameraFeed camera={camera} altura={100} />
@@ -199,8 +171,8 @@ function ModalCameraCheia({ camera, onFechar }: { camera: Camera | null; onFecha
 
               <View style={styles.modalInfo}>
                 <Text style={styles.modalNome}>{camera.nome}</Text>
-                <Text style={[styles.modalArea, { color: CONFIG_AREA[camera.area].cor }]}>
-                  {CONFIG_AREA[camera.area].nome} ·{' '}
+                <Text style={[styles.modalArea, { color: configArea(camera.area).cor }]}>
+                  {configArea(camera.area).nome} ·{' '}
                   {!camera.ativa ? 'Desativada' : camera.online ? 'Online' : 'Offline'}
                 </Text>
               </View>
@@ -226,7 +198,7 @@ interface LinhaCameraProps {
 }
 
 function LinhaCamera({ camera, onEditar, onRemover, onAlternarAtiva }: LinhaCameraProps) {
-  const config = CONFIG_AREA[camera.area];
+  const config = configArea(camera.area);
   return (
     <View style={styles.linhaCamera}>
       <View style={styles.linhaCameraTopo}>
@@ -387,12 +359,37 @@ function ModalCameraForm({ visivel, cameraEditando, onFechar, onSalvar }: ModalC
 
 export default function TelaCamerasSindico() {
   const [abaAtiva, setAbaAtiva] = useState<Aba>('visualizar');
-  const [cameras, setCameras] = useState<Camera[]>(MOCK_CAMERAS);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroArea>('todas');
   const [cameraAberta, setCameraAberta] = useState<Camera | null>(null);
 
   const [modalFormVisivel, setModalFormVisivel] = useState(false);
   const [cameraEditando, setCameraEditando] = useState<Camera | null>(null);
+
+  useEffect(() => {
+    carregarCameras();
+  }, []);
+
+  async function carregarCameras() {
+    const { data, error } = await supabase
+      .from('cameras')
+      .select('id, nome, area, url_stream, ativa, online');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as câmeras.');
+      return;
+    }
+
+    const lista: Camera[] = (data ?? []).map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      area: c.area as Area | null,
+      urlStream: c.url_stream ?? '',
+      ativa: c.ativa,
+      online: c.online,
+    }));
+    setCameras(lista);
+  }
 
   const camerasFiltradas = cameras.filter((c) => filtroAtivo === 'todas' || c.area === filtroAtivo);
   const totalOnline = cameras.filter((c) => c.ativa && c.online).length;
@@ -408,21 +405,41 @@ export default function TelaCamerasSindico() {
     setModalFormVisivel(true);
   }
 
-  function handleSalvarCamera(dados: Omit<Camera, 'id' | 'online'>, idEdicao: string | null) {
-    if (idEdicao) {
-      setCameras((atual) => atual.map((c) => (c.id === idEdicao ? { ...c, ...dados } : c)));
-    } else {
-      setCameras((atual) => [...atual, { ...dados, id: String(Date.now()), online: true }]);
+  async function handleSalvarCamera(dados: Omit<Camera, 'id' | 'online'>, idEdicao: string | null) {
+    const registro = { nome: dados.nome, area: dados.area, url_stream: dados.urlStream, ativa: dados.ativa };
+
+    const { error } = idEdicao
+      ? await supabase.from('cameras').update(registro).eq('id', idEdicao)
+      : await supabase.from('cameras').insert(registro);
+
+    if (error) {
+      Alert.alert('Erro', idEdicao ? 'Não foi possível atualizar a câmera.' : 'Não foi possível cadastrar a câmera.');
+      return;
     }
+
     setModalFormVisivel(false);
+    carregarCameras();
   }
 
-  function handleRemoverCamera(id: string) {
-    setCameras((atual) => atual.filter((c) => c.id !== id));
+  async function handleRemoverCamera(id: string) {
+    const { error } = await supabase.from('cameras').delete().eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover a câmera.');
+      return;
+    }
+    carregarCameras();
   }
 
-  function handleAlternarAtiva(id: string) {
-    setCameras((atual) => atual.map((c) => (c.id === id ? { ...c, ativa: !c.ativa } : c)));
+  async function handleAlternarAtiva(id: string) {
+    const camera = cameras.find((c) => c.id === id);
+    if (!camera) return;
+
+    const { error } = await supabase.from('cameras').update({ ativa: !camera.ativa }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível atualizar a câmera.');
+      return;
+    }
+    carregarCameras();
   }
 
   return (

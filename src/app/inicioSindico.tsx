@@ -1,5 +1,7 @@
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 const Routes = {
     comunicados: './comunicados',//feito
@@ -36,6 +38,25 @@ const menuItems = [
 ];
 
 export default function InicioSindico(){
+    const [nome, setNome] = useState<string | null>(null);
+
+    useEffect(() => {
+        carregarPerfil();
+    }, []);
+
+    async function carregarPerfil() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+            .from('profiles')
+            .select('nome')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (data) setNome(data.nome);
+    }
+
     return (
         <View style={styles.container}>
            {/* Header fixo */}
@@ -60,7 +81,7 @@ export default function InicioSindico(){
            >
                {/* Welcome Section */}
                <View style={styles.welcomeSection}>
-                   <Text style={styles.welcomeText}>Bem-vindo(a), Síndico(a)! 👋</Text>
+                   <Text style={styles.welcomeText}>Olá, {nome?.split(' ')[0] ?? 'Síndico(a)'}</Text>
                    <Text style={styles.welcomeSubtext}>O que você gostaria de gerenciar hoje?</Text>
                </View>
 

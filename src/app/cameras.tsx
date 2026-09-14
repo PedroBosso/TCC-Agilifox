@@ -1,16 +1,43 @@
 import { router } from 'expo-router';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-const camerasList = [
-    { id: '1', name: 'Portaria Principal', local: 'Entrada de pedestres e veículos', status: 'Online' },
-    { id: '2', name: 'Garagem Subsolo 1', local: 'Setor Norte', status: 'Online' },
-    { id: '3', name: 'Garagem Subsolo 2', local: 'Setor Sul', status: 'Manutenção' },
-    { id: '4', name: 'Hall do Bloco A', local: 'Térreo', status: 'Online' },
-    { id: '5', name: 'Hall do Bloco B', local: 'Térreo', status: 'Online' },
-    { id: '6', name: 'Área da Piscina', local: 'Lazer', status: 'Online' },
-];
+interface Camera {
+    id: string;
+    nome: string;
+    area: string | null;
+    online: boolean;
+}
+
+const NOME_AREA: Record<string, string> = {
+    entrada: 'Entrada',
+    garagem: 'Garagem',
+    areas_comuns: 'Áreas comuns',
+    seguranca: 'Segurança',
+};
 
 export default function CamerasPorteiro() {
+    const [cameras, setCameras] = useState<Camera[]>([]);
+
+    useEffect(() => {
+        carregarCameras();
+    }, []);
+
+    async function carregarCameras() {
+        const { data, error } = await supabase
+            .from('cameras')
+            .select('id, nome, area, online')
+            .eq('ativa', true);
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível carregar as câmeras.');
+            return;
+        }
+
+        setCameras(data ?? []);
+    }
+
     return (
         <View style={styles.container}>
             {/* Header fixo */}
@@ -25,36 +52,36 @@ export default function CamerasPorteiro() {
             </View>
 
             {/* Conteúdo scrollável */}
-            <ScrollView 
+            <ScrollView
                 style={styles.scrollContent}
                 showsVerticalScrollIndicator={true}
             >
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>Câmeras ao Vivo 📹</Text>
+                    <Text style={styles.welcomeText}>Câmeras ao Vivo</Text>
                     <Text style={styles.welcomeSubtext}>Selecione uma câmera para ampliar a visualização.</Text>
                 </View>
 
                 {/* Lista de Câmeras */}
                 <View style={styles.camerasContainer}>
-                    {camerasList.map((cam) => (
+                    {cameras.map((cam) => (
                         <View key={cam.id} style={styles.cameraCard}>
                             <View style={styles.cameraInfo}>
                                 <View style={styles.cameraIconWrapper}>
-                                    <Image 
-                                        source={require('../../assets/images/lupa.png')} 
-                                        style={styles.imageIcon} 
+                                    <Image
+                                        source={require('../../assets/images/lupa.png')}
+                                        style={styles.imageIcon}
                                     />
                                 </View>
                                 <View style={styles.cameraTextContent}>
-                                    <Text style={styles.cameraName}>{cam.name}</Text>
-                                    <Text style={styles.cameraLocal}>{cam.local}</Text>
+                                    <Text style={styles.cameraName}>{cam.nome}</Text>
+                                    <Text style={styles.cameraLocal}>{cam.area ? NOME_AREA[cam.area] ?? cam.area : 'Área não definida'}</Text>
                                 </View>
                             </View>
                             <View style={[
-                                styles.statusBadge, 
-                                { backgroundColor: cam.status === 'Online' ? '#e49c42' : '#999999' }
+                                styles.statusBadge,
+                                { backgroundColor: cam.online ? '#e49c42' : '#999999' }
                             ]}>
-                                <Text style={styles.statusText}>{cam.status}</Text>
+                                <Text style={styles.statusText}>{cam.online ? 'Online' : 'Offline'}</Text>
                             </View>
                         </View>
                     ))}

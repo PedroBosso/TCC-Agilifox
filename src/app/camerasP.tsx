@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     FlatList,
     Modal,
@@ -11,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 type Area = 'entrada' | 'garagem' | 'areas_comuns' | 'seguranca';
 type FiltroArea = 'todas' | Area;
@@ -18,7 +20,7 @@ type FiltroArea = 'todas' | Area;
 interface Camera {
   id: string;
   nome: string;
-  area: Area;
+  area: Area | null;
   online: boolean;
 }
 
@@ -31,25 +33,16 @@ const CONFIG_AREA: Record<Area, { nome: string; cor: string }> = {
   seguranca: { nome: 'Segurança', cor: '#C0392B' },
 };
 
+function configArea(area: Area | null): { nome: string; cor: string } {
+  return area ? CONFIG_AREA[area] : { nome: 'Sem área', cor: '#8A8377' };
+}
+
 const FILTROS: { id: FiltroArea; nome: string }[] = [
   { id: 'todas', nome: 'Todas' },
   { id: 'entrada', nome: 'Entrada' },
   { id: 'garagem', nome: 'Garagem' },
   { id: 'areas_comuns', nome: 'Áreas comuns' },
   { id: 'seguranca', nome: 'Segurança' },
-];
-
-// ---------- Dados mockados ----------
-
-const MOCK_CAMERAS: Camera[] = [
-  { id: 'c1', nome: 'Portaria Principal', area: 'entrada', online: true },
-  { id: 'c2', nome: 'Portão de Veículos', area: 'entrada', online: true },
-  { id: 'c3', nome: 'Garagem - Subsolo 1', area: 'garagem', online: true },
-  { id: 'c4', nome: 'Garagem - Subsolo 2', area: 'garagem', online: false },
-  { id: 'c5', nome: 'Elevador Social - Bloco A', area: 'areas_comuns', online: true },
-  { id: 'c6', nome: 'Piscina', area: 'areas_comuns', online: true },
-  { id: 'c7', nome: 'Playground', area: 'areas_comuns', online: true },
-  { id: 'c8', nome: 'Portão dos Fundos', area: 'seguranca', online: false },
 ];
 
 // ---------- Helpers ----------
@@ -136,7 +129,7 @@ interface CartaoCameraProps {
 }
 
 function CartaoCamera({ camera, onPress }: CartaoCameraProps) {
-  const config = CONFIG_AREA[camera.area];
+  const config = configArea(camera.area);
   return (
     <TouchableOpacity style={styles.cartao} onPress={onPress} activeOpacity={0.85}>
       <CameraFeed camera={camera} altura={100} />
@@ -160,8 +153,8 @@ function ModalCameraCheia({ camera, onFechar }: { camera: Camera | null; onFecha
 
               <View style={styles.modalInfo}>
                 <Text style={styles.modalNome}>{camera.nome}</Text>
-                <Text style={[styles.modalArea, { color: CONFIG_AREA[camera.area].cor }]}>
-                  {CONFIG_AREA[camera.area].nome} · {camera.online ? 'Online' : 'Offline'}
+                <Text style={[styles.modalArea, { color: configArea(camera.area).cor }]}>
+                  {configArea(camera.area).nome} · {camera.online ? 'Online' : 'Offline'}
                 </Text>
               </View>
 
@@ -179,11 +172,30 @@ function ModalCameraCheia({ camera, onFechar }: { camera: Camera | null; onFecha
 // ---------- Tela principal ----------
 
 export default function TelaCamerasPorteiro() {
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroArea>('todas');
   const [cameraAberta, setCameraAberta] = useState<Camera | null>(null);
 
-  const camerasFiltradas = MOCK_CAMERAS.filter((c) => filtroAtivo === 'todas' || c.area === filtroAtivo);
-  const totalOnline = MOCK_CAMERAS.filter((c) => c.online).length;
+  useEffect(() => {
+    carregarCameras();
+  }, []);
+
+  async function carregarCameras() {
+    const { data, error } = await supabase
+      .from('cameras')
+      .select('id, nome, area, online')
+      .eq('ativa', true);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as câmeras.');
+      return;
+    }
+
+    setCameras(data ?? []);
+  }
+
+  const camerasFiltradas = cameras.filter((c) => filtroAtivo === 'todas' || c.area === filtroAtivo);
+  const totalOnline = cameras.filter((c) => c.online).length;
 
   return (
     <SafeAreaView style={styles.tela}>
@@ -197,7 +209,7 @@ export default function TelaCamerasPorteiro() {
         <View style={styles.contadorOnline}>
           <View style={styles.contadorPonto} />
           <Text style={styles.contadorTexto}>
-            {totalOnline}/{MOCK_CAMERAS.length} online
+            {totalOnline}/{cameras.length} online
           </Text>
         </View>
       </View>

@@ -1,12 +1,9 @@
-/**
- * CadastrarEncomendaPorteiro.tsx
- *
- * Tela para o porteiro registrar a chegada de encomendas aos moradores.
- */
+// Tela para o porteiro registrar a chegada de encomendas aos moradores — dados vão para o Supabase (tabela encomendas).
 
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function CadastrarEncomendaPorteiro() {
     const [morador, setMorador] = useState('');
@@ -14,14 +11,38 @@ export default function CadastrarEncomendaPorteiro() {
     const [codigo, setCodigo] = useState('');
     const [transportadora, setTransportadora] = useState('');
     const [observacao, setObservacao] = useState('');
+    const [enviando, setEnviando] = useState(false);
 
-    const handleCadastrar = () => {
+    const handleCadastrar = async () => {
         if (!morador || !apartamento) {
-            alert('Por favor, preencha pelo menos o nome do morador e o apartamento.');
+            Alert.alert('Erro', 'Por favor, preencha pelo menos o nome do morador e o apartamento.');
             return;
         }
 
-        alert(`Encomenda cadastrada com sucesso para o apartamento ${apartamento}! (Simulação)`);
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        setEnviando(true);
+
+        const { error } = await supabase.from('encomendas').insert({
+            apartamento,
+            morador_nome: morador,
+            transportadora: transportadora || null,
+            codigo_rastreio: codigo || null,
+            observacao: observacao || null,
+            registrado_por: user?.id ?? null,
+            status: 'na_portaria',
+        });
+
+        setEnviando(false);
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível cadastrar a encomenda.');
+            return;
+        }
+
+        Alert.alert('Sucesso', `Encomenda cadastrada com sucesso para o apartamento ${apartamento}!`);
         setMorador('');
         setApartamento('');
         setCodigo('');
@@ -48,7 +69,7 @@ export default function CadastrarEncomendaPorteiro() {
                 showsVerticalScrollIndicator={true}
             >
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>Nova Encomenda 📦</Text>
+                    <Text style={styles.welcomeText}>Nova Encomenda</Text>
                     <Text style={styles.welcomeSubtext}>Registre a chegada de um pacote para notificar o morador.</Text>
                 </View>
 
@@ -111,14 +132,18 @@ export default function CadastrarEncomendaPorteiro() {
                         />
                     </View>
 
-                    <Pressable 
+                    <Pressable
                         style={({ pressed }) => [
                             styles.submitButton,
-                            pressed && { opacity: 0.85 }
+                            pressed && { opacity: 0.85 },
+                            enviando && { opacity: 0.6 }
                         ]}
                         onPress={handleCadastrar}
+                        disabled={enviando}
                     >
-                        <Text style={styles.submitButtonText}>Cadastrar e avisar morador</Text>
+                        <Text style={styles.submitButtonText}>
+                            {enviando ? 'Cadastrando...' : 'Cadastrar e avisar morador'}
+                        </Text>
                     </Pressable>
                 </View>
 

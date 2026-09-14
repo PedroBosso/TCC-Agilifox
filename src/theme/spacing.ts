@@ -1,7 +1,4 @@
-// src/theme/spacing.ts
-// 📏 Sistema de espaçamento padronizado
-// Base: 8px (mobile-first)
-// Úso: spacing.sm, spacing.md, spacing.lg, etc
+// Sistema de espaçamento padronizado, base 8px
 
 export const spacing = {
   xs: 4,    // Extra pequeno (gaps entre elementos)

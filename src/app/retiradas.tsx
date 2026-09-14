@@ -1,7 +1,10 @@
+// Tela de Encomendas retiradas do morador — redundante com a aba "Retiradas" de encomendas.tsx; consulta a mesma tabela encomendas.
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     Image,
     StyleSheet,
@@ -9,48 +12,91 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 type EncomendaRetirada = {
   id: string;
-  lote: string;
+  lote: string | null;
   tipo: string;
   retirada: string;
   chegada: string;
-  imagem: string;
+  imagem: string | null;
 };
+
+function formatarDataHora(dataISO: string | null): string {
+  if (!dataISO) return 'Não informada';
+  return new Date(dataISO).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function EncomendasScreen() {
   const [abaSelecionada, setAbaSelecionada] = useState('retiradas');
+  const [carregando, setCarregando] = useState(true);
+  const [encomendasRetiradas, setEncomendasRetiradas] = useState<EncomendaRetirada[]>([]);
 
-  const encomendasRetiradas: EncomendaRetirada[] = [
-    {
-      id: '1',
-      lote: 'LOTE 202',
-      tipo: 'Caixa',
-      retirada: 'Retirada 15/5/2025 às 10h19',
-      chegada: 'Chegou 14/05/2025 às 17:00',
-      imagem: 'https://picsum.photos/200',
-    },
-    {
-      id: '2',
-      lote: 'LOTE 202',
-      tipo: 'Pacote',
-      retirada: 'Retirada 7/5/2025 às 11h46',
-      chegada: 'Chegou 05/05/2025 às 11:34',
-      imagem: 'https://picsum.photos/201',
-    },
-  ];
+  useEffect(() => {
+    carregarRetiradas();
+  }, []);
+
+  async function carregarRetiradas() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('encomendas')
+      .select('*')
+      .eq('status', 'retirada')
+      .eq('morador_id', user.id)
+      .order('data_retirada', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as encomendas retiradas.');
+      setCarregando(false);
+      return;
+    }
+
+    setEncomendasRetiradas(
+      (data ?? []).map((row) => ({
+        id: row.id,
+        lote: row.transportadora,
+        tipo: row.remetente ?? 'Encomenda',
+        retirada: `Retirada ${formatarDataHora(row.data_retirada)}`,
+        chegada: `Chegou ${formatarDataHora(row.data_chegada)}`,
+        imagem: row.imagem_url,
+      }))
+    );
+    setCarregando(false);
+  }
 
   function renderItem({ item }: { item: EncomendaRetirada }) {
     return (
       <TouchableOpacity style={styles.card}>
-        <Image
-          source={{ uri: item.imagem }}
-          style={styles.imagem}
-        />
+        {item.imagem ? (
+          <Image
+            source={{ uri: item.imagem }}
+            style={styles.imagem}
+          />
+        ) : (
+          <View style={[styles.imagem, styles.imagemPlaceholder]}>
+            <Ionicons name="cube-outline" size={28} color="#9AA5B1" />
+          </View>
+        )}
 
         <View style={styles.conteudo}>
-          <Text style={styles.lote}>{item.lote}</Text>
+          {item.lote && <Text style={styles.lote}>{item.lote}</Text>}
 
           <Text style={styles.tipo}>
             {item.tipo}
@@ -79,6 +125,14 @@ export default function EncomendasScreen() {
           color="#4F5B66"
         />
       </TouchableOpacity>
+    );
+  }
+
+  if (carregando) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#4F5B66" />
+      </View>
     );
   }
 
@@ -269,6 +323,12 @@ const styles = StyleSheet.create({
     width: 74,
     height: 74,
     borderRadius: 6,
+  },
+
+  imagemPlaceholder: {
+    backgroundColor: '#F0F2F4',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   conteudo: {

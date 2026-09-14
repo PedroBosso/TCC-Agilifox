@@ -1,6 +1,7 @@
-
+// Tela de Assembleia Online para o morador — dados vêm do Supabase (assembleias, assembleia_pauta, assembleia_documentos).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Animated,
     FlatList,
     Linking,
@@ -12,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -52,10 +54,6 @@ const CONFIG_STATUS: Record<StatusAssembleia, { nome: string; cor: string; fundo
 };
 
 // ---------- Helpers de data ----------
-
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
 
 function addMinutos(data: Date, minutos: number): Date {
   return new Date(data.getTime() + minutos * 60000);
@@ -103,59 +101,6 @@ function calcularStatusExibicao(assembleia: Assembleia, agora: Date): StatusAsse
   if (agora < liberaEntradaEm) return 'agendada';
   if (agora <= fim) return 'ao_vivo';
   return 'encerrada';
-}
-
-// ---------- Dados mockados ----------
-// Gerados a partir de "agora" para que a tela sempre demonstre uma assembleia
-// ao vivo (ótimo para testar o botão "Entrar na reunião") e um histórico coerente.
-
-function gerarDadosMock(agora: Date): { atual: Assembleia; historico: Assembleia[] } {
-  const atual: Assembleia = {
-    id: 'a1',
-    titulo: 'Assembleia Geral Ordinária — Prestação de Contas',
-    tipo: 'ordinaria',
-    dataISO: addMinutos(agora, -10).toISOString(),
-    duracaoMinutos: 90,
-    linkReuniao: 'https://meet.google.com/exemplo-condominio',
-    pauta: [
-      'Aprovação da ata da assembleia anterior',
-      'Apresentação da prestação de contas do semestre',
-      'Votação do orçamento para reforma da fachada',
-      'Assuntos gerais e espaço aberto para moradores',
-    ],
-    documentos: [
-      { id: 'd1', nome: 'Edital de Convocação.pdf' },
-      { id: 'd2', nome: 'Prestação de Contas - Semestre.pdf' },
-    ],
-    status: 'agendada',
-  };
-
-  const historico: Assembleia[] = [
-    {
-      id: 'a2',
-      titulo: 'Assembleia Geral Extraordinária — Nova empresa de portaria',
-      tipo: 'extraordinaria',
-      dataISO: addDias(agora, -35).toISOString(),
-      duracaoMinutos: 60,
-      linkReuniao: '',
-      pauta: ['Apresentação de propostas', 'Votação da empresa contratada'],
-      documentos: [{ id: 'd3', nome: 'Ata - Assembleia Extraordinária.pdf' }],
-      status: 'agendada',
-    },
-    {
-      id: 'a3',
-      titulo: 'Assembleia Geral Ordinária — Eleição da síndica',
-      tipo: 'ordinaria',
-      dataISO: addDias(agora, -95).toISOString(),
-      duracaoMinutos: 120,
-      linkReuniao: '',
-      pauta: ['Prestação de contas anual', 'Eleição da nova síndica', 'Assuntos gerais'],
-      documentos: [{ id: 'd4', nome: 'Ata - Eleição.pdf' }],
-      status: 'agendada',
-    },
-  ];
-
-  return { atual, historico };
 }
 
 // ---------- Subcomponentes ----------
@@ -227,15 +172,30 @@ function EstadoVazioHistorico() {
   );
 }
 
+function EstadoVazioAtual() {
+  return (
+    <View style={styles.estadoVazio}>
+      <View style={styles.estadoVazioCirculo}>
+        <Text style={styles.estadoVazioIcone}>+</Text>
+      </View>
+      <Text style={styles.estadoVazioTitulo}>Nenhuma assembleia agendada</Text>
+      <Text style={styles.estadoVazioTexto}>Quando a síndica publicar uma nova assembleia, ela aparece aqui.</Text>
+    </View>
+  );
+}
+
 // ---------- Tela principal ----------
 
 export default function TelaAssembleiaMorador() {
-  const referenciaInicial = useRef(new Date()).current;
-  const { atual, historico } = useMemo(() => gerarDadosMock(referenciaInicial), [referenciaInicial]);
-
+  const [carregando, setCarregando] = useState(true);
+  const [assembleias, setAssembleias] = useState<Assembleia[]>([]);
   const [agora, setAgora] = useState(new Date());
   const [abaAtiva, setAbaAtiva] = useState<Aba>('atual');
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    carregarAssembleias();
+  }, []);
 
   // Atualiza "agora" periodicamente para que a assembleia mude de status
   // (agendada -> ao vivo -> encerrada) sem precisar recarregar a tela.
@@ -244,7 +204,89 @@ export default function TelaAssembleiaMorador() {
     return () => clearInterval(intervalo);
   }, []);
 
-  const statusAtual = calcularStatusExibicao(atual, agora);
+  async function carregarAssembleias() {
+    const { data, error } = await supabase
+      .from('assembleias')
+      .select('id, titulo, tipo, data_hora, duracao_minutos, link_reuniao, status, encerrada_manualmente')
+      .order('data_hora');
+
+    if (error || !data) {
+      setCarregando(false);
+      return;
+    }
+
+    const ids = data.map((a) => a.id);
+    const documentosPorAssembleia = new Map<string, DocumentoAssembleia[]>();
+
+    if (ids.length > 0) {
+      const { data: documentos } = await supabase
+        .from('assembleia_documentos')
+        .select('id, assembleia_id, nome')
+        .in('assembleia_id', ids);
+
+      (documentos ?? []).forEach((d) => {
+        const lista = documentosPorAssembleia.get(d.assembleia_id) ?? [];
+        lista.push({ id: d.id, nome: d.nome });
+        documentosPorAssembleia.set(d.assembleia_id, lista);
+      });
+    }
+
+    setAssembleias(
+      data.map((a) => ({
+        id: a.id,
+        titulo: a.titulo,
+        tipo: a.tipo,
+        dataISO: a.data_hora,
+        duracaoMinutos: a.duracao_minutos ?? 0,
+        linkReuniao: a.link_reuniao ?? '',
+        pauta: [],
+        documentos: documentosPorAssembleia.get(a.id) ?? [],
+        status: a.status,
+        encerradaManualmente: a.encerrada_manualmente,
+      }))
+    );
+    setCarregando(false);
+  }
+
+  const atual = useMemo(() => {
+    const futuras = assembleias
+      .filter((a) => {
+        const status = calcularStatusExibicao(a, agora);
+        return status === 'agendada' || status === 'ao_vivo';
+      })
+      .sort((a, b) => new Date(a.dataISO).getTime() - new Date(b.dataISO).getTime());
+    return futuras[0] ?? null;
+  }, [assembleias, agora]);
+
+  const historico = useMemo(
+    () =>
+      assembleias
+        .filter((a) => a.id !== atual?.id)
+        .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
+    [assembleias, atual]
+  );
+
+  // Busca a pauta da assembleia em destaque assim que ela é identificada
+  // (evita buscar pauta de todas as assembleias, já que só a atual exibe isso).
+  useEffect(() => {
+    if (!atual || atual.pauta.length > 0) return;
+    carregarPauta(atual.id);
+  }, [atual?.id]);
+
+  async function carregarPauta(assembleiaId: string) {
+    const { data: pauta } = await supabase
+      .from('assembleia_pauta')
+      .select('item')
+      .eq('assembleia_id', assembleiaId)
+      .order('ordem');
+
+    const itens = (pauta ?? []).map((p) => p.item);
+    setAssembleias((atualLista) =>
+      atualLista.map((a) => (a.id === assembleiaId ? { ...a, pauta: itens } : a))
+    );
+  }
+
+  const statusAtual = atual ? calcularStatusExibicao(atual, agora) : null;
 
   useEffect(() => {
     if (statusAtual !== 'ao_vivo') return;
@@ -259,7 +301,7 @@ export default function TelaAssembleiaMorador() {
   }, [statusAtual, pulseAnim]);
 
   async function handleEntrarNaReuniao() {
-    if (statusAtual !== 'ao_vivo' || !atual.linkReuniao) return;
+    if (!atual || statusAtual !== 'ao_vivo' || !atual.linkReuniao) return;
     try {
       const suportado = await Linking.canOpenURL(atual.linkReuniao);
       if (suportado) await Linking.openURL(atual.linkReuniao);
@@ -268,16 +310,16 @@ export default function TelaAssembleiaMorador() {
     }
   }
 
-  const inicio = new Date(atual.dataISO);
-  const liberaEntradaEm = addMinutos(inicio, -15);
-  const textoAjuda =
-    statusAtual === 'agendada'
-      ? `A entrada libera em ${formatarTempoRestante(liberaEntradaEm.getTime() - agora.getTime())}`
-      : statusAtual === 'ao_vivo'
-      ? 'A reunião está acontecendo agora. Toque para entrar.'
-      : statusAtual === 'encerrada'
-      ? 'Essa assembleia já foi encerrada.'
-      : 'Essa assembleia foi cancelada pela síndica.';
+  const textoAjuda = (() => {
+    if (!atual) return '';
+    if (statusAtual === 'agendada') {
+      const liberaEntradaEm = addMinutos(new Date(atual.dataISO), -15);
+      return `A entrada libera em ${formatarTempoRestante(liberaEntradaEm.getTime() - agora.getTime())}`;
+    }
+    if (statusAtual === 'ao_vivo') return 'A reunião está acontecendo agora. Toque para entrar.';
+    if (statusAtual === 'encerrada') return 'Essa assembleia já foi encerrada.';
+    return 'Essa assembleia foi cancelada pela síndica.';
+  })();
 
   const textoBotao =
     statusAtual === 'ao_vivo'
@@ -285,6 +327,17 @@ export default function TelaAssembleiaMorador() {
       : statusAtual === 'agendada'
       ? 'Entrada ainda não liberada'
       : 'Assembleia indisponível';
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.listaVaziaContainer}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.tela}>
@@ -315,47 +368,53 @@ export default function TelaAssembleiaMorador() {
       </View>
 
       {abaAtiva === 'atual' ? (
-        <ScrollView contentContainerStyle={styles.conteudoScroll} showsVerticalScrollIndicator={false}>
-          <View style={styles.cartaoDestaque}>
-            <View style={styles.cartaoDestaqueTopo}>
-              <SeloTipo tipo={atual.tipo} />
-              <SeloStatus status={statusAtual} pulseAnim={pulseAnim} />
+        atual && statusAtual ? (
+          <ScrollView contentContainerStyle={styles.conteudoScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.cartaoDestaque}>
+              <View style={styles.cartaoDestaqueTopo}>
+                <SeloTipo tipo={atual.tipo} />
+                <SeloStatus status={statusAtual} pulseAnim={pulseAnim} />
+              </View>
+
+              <Text style={styles.cartaoDestaqueTitulo}>{atual.titulo}</Text>
+              <Text style={styles.cartaoDestaqueData}>{formatarDataHoraExtensa(atual.dataISO)}</Text>
+
+              <TouchableOpacity
+                style={[styles.botaoEntrar, statusAtual !== 'ao_vivo' && styles.botaoEntrarDesabilitado]}
+                onPress={handleEntrarNaReuniao}
+                disabled={statusAtual !== 'ao_vivo'}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.botaoEntrarTexto}>{textoBotao}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.cartaoDestaqueAjuda}>{textoAjuda}</Text>
             </View>
 
-            <Text style={styles.cartaoDestaqueTitulo}>{atual.titulo}</Text>
-            <Text style={styles.cartaoDestaqueData}>{formatarDataHoraExtensa(atual.dataISO)}</Text>
-
-            <TouchableOpacity
-              style={[styles.botaoEntrar, statusAtual !== 'ao_vivo' && styles.botaoEntrarDesabilitado]}
-              onPress={handleEntrarNaReuniao}
-              disabled={statusAtual !== 'ao_vivo'}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.botaoEntrarTexto}>{textoBotao}</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.cartaoDestaqueAjuda}>{textoAjuda}</Text>
-          </View>
-
-          <Text style={styles.secaoTitulo}>Pauta</Text>
-          <View style={styles.listaPauta}>
-            {atual.pauta.map((itemPauta, indice) => (
-              <View key={indice} style={styles.itemPauta}>
-                <View style={styles.itemPautaNumero}>
-                  <Text style={styles.itemPautaNumeroTexto}>{indice + 1}</Text>
+            <Text style={styles.secaoTitulo}>Pauta</Text>
+            <View style={styles.listaPauta}>
+              {atual.pauta.map((itemPauta, indice) => (
+                <View key={indice} style={styles.itemPauta}>
+                  <View style={styles.itemPautaNumero}>
+                    <Text style={styles.itemPautaNumeroTexto}>{indice + 1}</Text>
+                  </View>
+                  <Text style={styles.itemPautaTexto}>{itemPauta}</Text>
                 </View>
-                <Text style={styles.itemPautaTexto}>{itemPauta}</Text>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
 
-          <Text style={styles.secaoTitulo}>Documentos</Text>
-          <View style={styles.listaDocumentos}>
-            {atual.documentos.map((documento) => (
-              <ItemDocumento key={documento.id} documento={documento} />
-            ))}
+            <Text style={styles.secaoTitulo}>Documentos</Text>
+            <View style={styles.listaDocumentos}>
+              {atual.documentos.map((documento) => (
+                <ItemDocumento key={documento.id} documento={documento} />
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.listaVaziaContainer}>
+            <EstadoVazioAtual />
           </View>
-        </ScrollView>
+        )
       ) : (
         <FlatList
           data={historico}

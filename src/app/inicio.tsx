@@ -112,7 +112,7 @@ export default function Inicio(){
            >
                {/* Welcome Section */}
                <View style={styles.welcomeSection}>
-                   <Text style={styles.welcomeText}>Bem vindo, {perfil?.nome?.split(' ')[0] ?? 'Morador'}! 👋</Text>
+                   <Text style={styles.welcomeText}>Olá, {perfil?.nome?.split(' ')[0] ?? 'Morador'}</Text>
                    <Text style={styles.welcomeSubtext}>O que você gostaria de acessar?</Text>
                </View>
 

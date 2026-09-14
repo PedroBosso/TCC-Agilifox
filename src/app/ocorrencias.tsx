@@ -1,18 +1,9 @@
-/**
- * TelaOcorrencias.js
- *
- * Tela de Ocorrências para moradores de condomínio.
- * Front-end apenas — os dados abaixo são mockados (MOCK_OCORRENCIAS).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `ocorrencias` por uma chamada à API (useEffect + fetch/axios)
- *   2. A função `handleNovaOcorrencia` por um POST para o seu endpoint
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Tela de Ocorrências do morador — dados vêm do Supabase (tabela ocorrencias).
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -26,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Configuração visual ----------
 
@@ -67,55 +59,19 @@ type Ocorrencia = {
 
 type NovaOcorrencia = Omit<Ocorrencia, 'id' | 'status' | 'data'>;
 
-const MOCK_OCORRENCIAS: Ocorrencia[] = [
-  {
-    id: '1',
-    titulo: 'Vazamento no teto da garagem',
-    descricao: 'Água escorrendo perto da vaga 14, bloco B, desde ontem à noite.',
-    categoria: 'manutencao',
-    status: 'aberta',
-    local: 'Garagem - Bloco B',
-    data: '2026-06-28T09:12:00',
-  },
-  {
-    id: '2',
-    titulo: 'Som alto após as 22h',
-    descricao: 'Apartamento 302 com música em volume alto durante a semana.',
-    categoria: 'barulho',
-    status: 'andamento',
-    local: 'Apto 302',
-    data: '2026-06-27T23:40:00',
-  },
-  {
-    id: '3',
-    titulo: 'Portão da garagem não fecha',
-    descricao: 'Sensor parece estar com defeito, portão fica meio aberto.',
-    categoria: 'seguranca',
-    status: 'andamento',
-    local: 'Entrada principal',
-    data: '2026-06-25T18:05:00',
-  },
-  {
-    id: '4',
-    titulo: 'Lâmpada queimada no corredor',
-    descricao: 'Corredor do 5º andar está escuro à noite.',
-    categoria: 'manutencao',
-    status: 'resolvida',
-    local: '5º andar - Bloco A',
-    data: '2026-06-20T14:30:00',
-  },
-  {
-    id: '5',
-    titulo: 'Lixo acumulado na área comum',
-    descricao: 'Sacos de lixo deixados ao lado da lixeira, atraindo insetos.',
-    categoria: 'limpeza',
-    status: 'resolvida',
-    local: 'Área comum - Térreo',
-    data: '2026-06-18T08:00:00',
-  },
-];
-
 // ---------- Helpers ----------
+
+function ocorrenciaDoBanco(row: any): Ocorrencia {
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    descricao: row.descricao,
+    categoria: row.categoria as OcorrenciaCategoria,
+    status: row.status,
+    local: row.local ?? 'Não informado',
+    data: row.criado_em,
+  };
+}
 
 function formatarData(isoString: string) {
   const data = new Date(isoString);
@@ -350,9 +306,45 @@ function ModalNovaOcorrencia({
 // ---------- Tela principal ----------
 
 export default function TelaOcorrencias() {
-  const [ocorrencias, setOcorrencias] = useState(MOCK_OCORRENCIAS);
+  const [ocorrencias, setOcorrencias] = useState<Ocorrencia[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [filtroAtivo, setFiltroAtivo] = useState('todas');
   const [modalVisivel, setModalVisivel] = useState(false);
+
+  useEffect(() => {
+    carregarOcorrencias();
+  }, []);
+
+  async function carregarOcorrencias() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data, error } = await supabase
+      .from('ocorrencias')
+      .select('*')
+      .eq('autor_id', user.id)
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar suas ocorrências.');
+      setCarregando(false);
+      return;
+    }
+
+    setOcorrencias((data ?? []).map(ocorrenciaDoBanco));
+    setCarregando(false);
+  }
 
   const ocorrenciasFiltradas = useMemo(() => {
     const lista =
@@ -367,19 +359,42 @@ export default function TelaOcorrencias() {
 
   const totalAbertas = ocorrencias.filter((o) => o.status === 'aberta').length;
 
-  function handleNovaOcorrencia(novaOcorrencia: NovaOcorrencia) {
-    const ocorrenciaCompleta: Ocorrencia = {
-      ...novaOcorrencia,
-      id: String(Date.now()),
-      status: 'aberta',
-      data: new Date().toISOString(),
-    };
-    setOcorrencias((atual) => [ocorrenciaCompleta, ...atual]);
+  async function handleNovaOcorrencia(novaOcorrencia: NovaOcorrencia) {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('ocorrencias')
+      .insert({
+        autor_id: userId,
+        origem: 'morador',
+        categoria: novaOcorrencia.categoria,
+        titulo: novaOcorrencia.titulo,
+        local: novaOcorrencia.local,
+        descricao: novaOcorrencia.descricao,
+        status: 'aberta',
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível registrar a ocorrência.');
+      return;
+    }
+
+    setOcorrencias((atual) => [ocorrenciaDoBanco(data), ...atual]);
   }
 
   function handlePressCard(ocorrencia: Ocorrencia) {
     // Espaço reservado para navegação futura até uma tela de detalhes, ex:
     // navigation.navigate('DetalheOcorrencia', { id: ocorrencia.id })
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={[styles.tela, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </SafeAreaView>
+    );
   }
 
   return (

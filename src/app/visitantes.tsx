@@ -1,7 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { supabase } from '../lib/supabase';
 
 const colors = {
   background: '#F6F1E5',
@@ -14,59 +25,50 @@ const colors = {
   green: '#2FA84F',
 };
 
-type VisitStatus = 'ativo' | 'agendado' | 'expirado';
+type VisitStatus = 'ativo' | 'agendado' | 'expirado' | 'cancelado';
 
 interface Visitor {
   id: string;
-  name: string;
-  detail: string;
-  unit: string;
+  nome_visitante: string;
+  detalhe: string | null;
+  apartamento: string;
   status: VisitStatus;
-  statusLabel: string;
-  timestamp: string;
-  recurring?: boolean;
+  data_inicio: string | null;
+  data_fim: string | null;
+  recorrente: boolean;
+  criado_em: string;
 }
 
-const sampleVisitors: Visitor[] = [
-  {
-    id: '1',
-    name: 'Rafael Martins',
-    detail: 'Visita única com placa ABC1D23',
-    unit: 'APTO 808 B',
-    status: 'ativo',
-    statusLabel: 'Autorizado hoje',
-    timestamp: '14h 18h',
-  },
-  {
-    id: '2',
-    name: 'Camila Borges',
-    detail: 'Diarista',
-    unit: 'APTO 808 B',
-    status: 'ativo',
-    statusLabel: 'Autorizado hoje',
-    timestamp: '08h 12h',
-    recurring: true,
-  },
-  {
-    id: '3',
-    name: 'João Santos',
-    detail: 'Entregador de gás',
-    unit: 'APTO 808 B',
-    status: 'agendado',
-    statusLabel: 'terça-feira',
-    timestamp: 'Próxima: 15/07',
-    recurring: true,
-  },
-  {
-    id: '4',
-    name: 'Pedro Ferreira',
-    detail: 'Visita única',
-    unit: 'APTO 808 B',
-    status: 'expirado',
-    statusLabel: 'Autorização expirada',
-    timestamp: 'Expirou 10/07/2025',
-  },
-];
+function formatarData(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
+
+function formatarHora(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function statusLabel(visitor: Visitor): string {
+  switch (visitor.status) {
+    case 'ativo':
+      return 'Autorizado';
+    case 'agendado':
+      return visitor.data_inicio ? `Agendado para ${formatarData(visitor.data_inicio)}` : 'Agendado';
+    case 'cancelado':
+      return 'Cancelado';
+    default:
+      return 'Autorização expirada';
+  }
+}
+
+function horarioTexto(visitor: Visitor): string {
+  if (visitor.data_inicio && visitor.data_fim) {
+    return `${formatarHora(visitor.data_inicio)} ${formatarHora(visitor.data_fim)}`;
+  }
+  if (visitor.data_inicio) {
+    return formatarData(visitor.data_inicio);
+  }
+  return `Cadastrado em ${formatarData(visitor.criado_em)}`;
+}
 
 function StatusIcon({ status }: { status: VisitStatus }) {
   const iconName =
@@ -89,6 +91,95 @@ function statusColor(status: VisitStatus) {
 
 export default function VisitantesAutorizados() {
   const [tab, setTab] = useState<'autorizados' | 'historico'>('autorizados');
+  const [visitantes, setVisitantes] = useState<Visitor[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [apto, setApto] = useState<string | null>(null);
+
+  const [modalVisivel, setModalVisivel] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoDetalhe, setNovoDetalhe] = useState('');
+  const [novoRecorrente, setNovoRecorrente] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  async function carregarDados() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('apto')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    setApto(perfil?.apto ?? null);
+
+    const { data, error } = await supabase
+      .from('autorizacoes_visita')
+      .select('id, nome_visitante, detalhe, apartamento, status, data_inicio, data_fim, recorrente, criado_em')
+      .eq('morador_id', user.id)
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os visitantes.');
+    } else {
+      setVisitantes(data ?? []);
+    }
+
+    setCarregando(false);
+  }
+
+  async function handleAutorizarVisitante() {
+    if (!novoNome.trim() || !userId) return;
+
+    setSalvando(true);
+    const { error } = await supabase.from('autorizacoes_visita').insert({
+      nome_visitante: novoNome.trim(),
+      morador_id: userId,
+      apartamento: apto ?? '',
+      status: 'ativo',
+      detalhe: novoDetalhe.trim() || null,
+      recorrente: novoRecorrente,
+    });
+    setSalvando(false);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível autorizar o visitante.');
+      return;
+    }
+
+    setModalVisivel(false);
+    setNovoNome('');
+    setNovoDetalhe('');
+    setNovoRecorrente(false);
+    carregarDados();
+  }
+
+  const visitantesFiltrados = visitantes.filter((v) =>
+    tab === 'autorizados' ? v.status === 'ativo' || v.status === 'agendado' : v.status === 'expirado' || v.status === 'cancelado'
+  );
+
+  if (carregando) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.amber} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -101,7 +192,7 @@ export default function VisitantesAutorizados() {
         </Pressable>
       </View>
 
-      <Text style={styles.unitLabel}>Apto. 808 B</Text>
+      <Text style={styles.unitLabel}>{apto ? `Apto. ${apto}` : 'Meu apartamento'}</Text>
       <Text style={styles.title}>Visitantes</Text>
 
       <View style={styles.tabs}>
@@ -120,11 +211,20 @@ export default function VisitantesAutorizados() {
       </View>
 
       <ScrollView contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
-        {sampleVisitors.map((visitor) => (
-          <View key={visitor.id} style={[styles.card, visitor.status === 'expirado' && styles.cardExpired]}>
+        {visitantesFiltrados.length === 0 && (
+          <Text style={{ color: colors.gray, textAlign: 'center', marginTop: 24 }}>
+            Nenhum visitante nesta lista.
+          </Text>
+        )}
+
+        {visitantesFiltrados.map((visitor) => (
+          <View
+            key={visitor.id}
+            style={[styles.card, (visitor.status === 'expirado' || visitor.status === 'cancelado') && styles.cardExpired]}
+          >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {visitor.name
+                {visitor.nome_visitante
                   .split(' ')
                   .slice(0, 2)
                   .map((part) => part[0])
@@ -133,18 +233,18 @@ export default function VisitantesAutorizados() {
             </View>
 
             <View style={styles.cardContent}>
-              <Text style={styles.unitText}>{visitor.unit}</Text>
-              <Text style={styles.nameText}>{visitor.name}</Text>
-              <Text style={styles.detailText}>{visitor.detail}</Text>
+              <Text style={styles.unitText}>APTO {visitor.apartamento}</Text>
+              <Text style={styles.nameText}>{visitor.nome_visitante}</Text>
+              {!!visitor.detalhe && <Text style={styles.detailText}>{visitor.detalhe}</Text>}
 
               <View style={styles.statusRow}>
                 <StatusIcon status={visitor.status} />
-                <Text style={[styles.statusText, { color: statusColor(visitor.status) }]}> {visitor.statusLabel}</Text>
+                <Text style={[styles.statusText, { color: statusColor(visitor.status) }]}> {statusLabel(visitor)}</Text>
               </View>
-              <Text style={styles.timestampText}>{visitor.timestamp}</Text>
+              <Text style={styles.timestampText}>{horarioTexto(visitor)}</Text>
             </View>
 
-            {visitor.recurring && visitor.status !== 'expirado' && (
+            {visitor.recorrente && visitor.status !== 'expirado' && visitor.status !== 'cancelado' && (
               <Pressable style={styles.qrButton}>
                 <Ionicons name="qr-code-outline" size={16} color={colors.navy} />
               </Pressable>
@@ -152,11 +252,61 @@ export default function VisitantesAutorizados() {
           </View>
         ))}
 
-        <Pressable style={styles.addButton}>
+        <Pressable style={styles.addButton} onPress={() => setModalVisivel(true)}>
           <Ionicons name="add" size={18} color="#FFF" />
           <Text style={styles.addButtonText}>Autorizar novo visitante</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal visible={modalVisivel} animationType="slide" transparent onRequestClose={() => setModalVisivel(false)}>
+        <View style={styles.modalFundo}>
+          <View style={styles.modalCartao}>
+            <Text style={styles.modalTitulo}>Autorizar novo visitante</Text>
+
+            <Text style={styles.modalLabel}>Nome do visitante</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={novoNome}
+              onChangeText={setNovoNome}
+              placeholder="Ex: João da Silva"
+              placeholderTextColor={colors.gray}
+            />
+
+            <Text style={styles.modalLabel}>Detalhe (opcional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={novoDetalhe}
+              onChangeText={setNovoDetalhe}
+              placeholder="Ex: Visita única, diarista..."
+              placeholderTextColor={colors.gray}
+            />
+
+            <Pressable style={styles.modalCheckboxRow} onPress={() => setNovoRecorrente((v) => !v)}>
+              <View style={[styles.modalCheckbox, novoRecorrente && styles.modalCheckboxAtivo]}>
+                {novoRecorrente && <Ionicons name="checkmark" size={14} color="#FFF" />}
+              </View>
+              <Text style={styles.modalCheckboxLabel}>Visita recorrente</Text>
+            </Pressable>
+
+            <View style={styles.modalBotoes}>
+              <Pressable style={styles.modalBotaoCancelar} onPress={() => setModalVisivel(false)}>
+                <Text style={styles.modalBotaoCancelarText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBotaoConfirmar, (!novoNome.trim() || salvando) && { opacity: 0.6 }]}
+                onPress={handleAutorizarVisitante}
+                disabled={!novoNome.trim() || salvando}
+              >
+                {salvando ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.modalBotaoConfirmarText}>Autorizar</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -312,5 +462,92 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  modalFundo: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(38, 52, 74, 0.4)',
+  },
+  modalCartao: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 30,
+  },
+  modalTitulo: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.navy,
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.navy,
+    marginBottom: 6,
+    marginTop: 10,
+  },
+  modalInput: {
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: colors.navy,
+  },
+  modalCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  modalCheckboxAtivo: {
+    backgroundColor: colors.amber,
+    borderColor: colors.amber,
+  },
+  modalCheckboxLabel: {
+    fontSize: 13,
+    color: colors.navy,
+  },
+  modalBotoes: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 22,
+  },
+  modalBotaoCancelar: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  modalBotaoCancelarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.navy,
+  },
+  modalBotaoConfirmar: {
+    flex: 1,
+    backgroundColor: colors.amber,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  modalBotaoConfirmarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

@@ -1,25 +1,8 @@
-/**
- * TelaAssembleiaSindico.tsx
- *
- * Tela de Assembleias Online para o síndico. O síndico cadastra a assembleia
- * (título, tipo, data, horário, duração) e adiciona o link da reunião
- * (Google Meet, Zoom, Teams...) para que os moradores possam entrar na hora
- * certa. Quem apenas entra na reunião é o morador, na tela
- * TelaAssembleiaMorador.tsx.
- *
- * Front-end apenas — os dados abaixo são mockados (gerarAssembleiasMock).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `assembleias` por uma chamada à API (useEffect + fetch/axios)
- *   2. `handlePublicar` por um POST para o seu endpoint
- *   3. `handleSalvarLink`, `handleCancelarAssembleia` e `handleEncerrarAgora` por
- *      chamadas PATCH no endpoint correspondente
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
-
+// Tela de Assembleias Online para o síndico: cadastra a assembleia e o link da reunião; dados vêm do Supabase.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -33,6 +16,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -130,51 +114,6 @@ function calcularStatusExibicao(assembleia: Assembleia, agora: Date): StatusAsse
   if (agora < liberaEntradaEm) return 'agendada';
   if (agora <= fim) return 'ao_vivo';
   return 'encerrada';
-}
-
-// ---------- Dados mockados ----------
-// Gerados a partir de "agora" para que a tela sempre demonstre os diferentes
-// estados possíveis (agendada, ao vivo, encerrada, cancelada).
-
-function gerarAssembleiasMock(agora: Date): Assembleia[] {
-  return [
-    {
-      id: 'a1',
-      titulo: 'Assembleia Geral Ordinária — Prestação de Contas',
-      tipo: 'ordinaria',
-      dataISO: addMinutos(agora, -10).toISOString(),
-      duracaoMinutos: 90,
-      linkReuniao: 'https://meet.google.com/exemplo-condominio',
-      status: 'agendada',
-    },
-    {
-      id: 'a2',
-      titulo: 'Assembleia Extraordinária — Troca do playground',
-      tipo: 'extraordinaria',
-      dataISO: addDias(agora, 5).toISOString(),
-      duracaoMinutos: 60,
-      linkReuniao: 'https://meet.google.com/outro-exemplo',
-      status: 'agendada',
-    },
-    {
-      id: 'a3',
-      titulo: 'Assembleia Geral Extraordinária — Nova empresa de portaria',
-      tipo: 'extraordinaria',
-      dataISO: addDias(agora, -35).toISOString(),
-      duracaoMinutos: 60,
-      linkReuniao: 'https://meet.google.com/encerrada-1',
-      status: 'agendada',
-    },
-    {
-      id: 'a4',
-      titulo: 'Assembleia Geral Ordinária — Reforma do playground',
-      tipo: 'ordinaria',
-      dataISO: addDias(agora, 12).toISOString(),
-      duracaoMinutos: 90,
-      linkReuniao: 'https://meet.google.com/cancelada-1',
-      status: 'cancelada',
-    },
-  ];
 }
 
 // ---------- Subcomponentes ----------
@@ -368,7 +307,8 @@ export default function TelaAssembleiaSindico() {
 
   const [agora, setAgora] = useState(new Date());
   const [abaAtiva, setAbaAtiva] = useState<Aba>('nova');
-  const [assembleias, setAssembleias] = useState<Assembleia[]>(() => gerarAssembleiasMock(referenciaInicial));
+  const [carregando, setCarregando] = useState(true);
+  const [assembleias, setAssembleias] = useState<Assembleia[]>([]);
 
   // Campos do formulário
   const [titulo, setTitulo] = useState('');
@@ -384,6 +324,37 @@ export default function TelaAssembleiaSindico() {
     const intervalo = setInterval(() => setAgora(new Date()), 30000);
     return () => clearInterval(intervalo);
   }, []);
+
+  useEffect(() => {
+    carregarAssembleias();
+  }, []);
+
+  async function carregarAssembleias() {
+    const { data, error } = await supabase
+      .from('assembleias')
+      .select('id, titulo, tipo, data_hora, duracao_minutos, link_reuniao, status, encerrada_manualmente')
+      .order('data_hora');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as assembleias.');
+      setCarregando(false);
+      return;
+    }
+
+    setAssembleias(
+      (data ?? []).map((a) => ({
+        id: a.id,
+        titulo: a.titulo,
+        tipo: a.tipo,
+        dataISO: a.data_hora,
+        duracaoMinutos: a.duracao_minutos ?? 0,
+        linkReuniao: a.link_reuniao ?? '',
+        status: a.status,
+        encerradaManualmente: a.encerrada_manualmente,
+      }))
+    );
+    setCarregando(false);
+  }
 
   const assembleiasOrdenadas = useMemo(
     () => [...assembleias].sort((a, b) => new Date(a.dataISO).getTime() - new Date(b.dataISO).getTime()),
@@ -402,17 +373,42 @@ export default function TelaAssembleiaSindico() {
     setLink('');
   }
 
-  function handlePublicar() {
+  async function handlePublicar() {
     if (!podePublicar || !dataSelecionada || !horarioSelecionado) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('assembleias')
+      .insert({
+        titulo: titulo.trim(),
+        tipo,
+        data_hora: combinarDataHora(dataSelecionada, horarioSelecionado),
+        duracao_minutos: duracaoSelecionada,
+        link_reuniao: link.trim(),
+        criado_por: user.id,
+        status: 'agendada',
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível publicar a assembleia.');
+      return;
+    }
+
     const novaAssembleia: Assembleia = {
-      id: String(Date.now()),
-      titulo: titulo.trim(),
-      tipo,
-      dataISO: combinarDataHora(dataSelecionada, horarioSelecionado),
-      duracaoMinutos: duracaoSelecionada,
-      linkReuniao: link.trim(),
-      status: 'agendada',
+      id: data.id,
+      titulo: data.titulo,
+      tipo: data.tipo,
+      dataISO: data.data_hora,
+      duracaoMinutos: data.duracao_minutos ?? 0,
+      linkReuniao: data.link_reuniao ?? '',
+      status: data.status,
+      encerradaManualmente: data.encerrada_manualmente,
     };
 
     setAssembleias((atual) => [novaAssembleia, ...atual]);
@@ -420,17 +416,43 @@ export default function TelaAssembleiaSindico() {
     setAbaAtiva('publicadas');
   }
 
-  function handleSalvarLink(id: string, novoLink: string) {
+  async function handleSalvarLink(id: string, novoLink: string) {
+    const { error } = await supabase.from('assembleias').update({ link_reuniao: novoLink }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível salvar o novo link.');
+      return;
+    }
     setAssembleias((atual) => atual.map((a) => (a.id === id ? { ...a, linkReuniao: novoLink } : a)));
     setAssembleiaEditandoLink(null);
   }
 
-  function handleCancelarAssembleia(id: string) {
+  async function handleCancelarAssembleia(id: string) {
+    const { error } = await supabase.from('assembleias').update({ status: 'cancelada' }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível cancelar a assembleia.');
+      return;
+    }
     setAssembleias((atual) => atual.map((a) => (a.id === id ? { ...a, status: 'cancelada' } : a)));
   }
 
-  function handleEncerrarAgora(id: string) {
+  async function handleEncerrarAgora(id: string) {
+    const { error } = await supabase.from('assembleias').update({ encerrada_manualmente: true }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível encerrar a assembleia.');
+      return;
+    }
     setAssembleias((atual) => atual.map((a) => (a.id === id ? { ...a, encerradaManualmente: true } : a)));
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.listaVaziaContainer}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

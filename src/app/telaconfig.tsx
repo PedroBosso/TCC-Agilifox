@@ -1,47 +1,24 @@
-/**
- * TelaConfiguracoes.tsx
- *
- * Tela de Configurações do usuário — a mesma para morador, síndico e
- * porteiro (o que muda entre eles é só o dado carregado do perfil, nunca a
- * tela em si). Permite alterar e-mail, telefone e foto de perfil.
- *
- * "Cadastro facial" aqui foi implementado como troca de foto de perfil (a
- * mesma imagem que aparece no ícone de usuário da tela de início) — não como
- * reconhecimento facial de verdade, que envolveria biometria e é um projeto
- * à parte, com implicações de privacidade bem maiores do que uma simples
- * foto de perfil.
- *
- * AJUSTES NECESSÁRIOS:
- *   1. O caminho do import `../../lib/supabase` deve apontar para o cliente
- *      Supabase configurado no seu projeto.
- *   2. Instale o seletor de imagens: npx expo install expo-image-picker
- *   3. Crie um bucket chamado "avatars" no Supabase Storage (veja o SQL de
- *      políticas de acesso na resposta que acompanha este arquivo).
- *   4. A tabela `profiles` precisa das colunas `telefone` e `foto_url`
- *      (também no SQL da resposta).
- *
- * Dependências: @supabase/supabase-js (já usado no projeto) e expo-image-picker.
- */
+// Tela de Configurações do usuário — comum a morador, síndico e porteiro.
 
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 
-// ---------- Tipos ----------
+// Tipos
 
 type Role = 'morador' | 'sindico' | 'porteiro';
 
@@ -60,7 +37,7 @@ interface Mensagem {
   texto: string;
 }
 
-// ---------- Configuração visual ----------
+// Configuração visual 
 
 const NOME_ROLE: Record<Role, string> = {
   morador: 'Morador',
@@ -68,7 +45,7 @@ const NOME_ROLE: Record<Role, string> = {
   porteiro: 'Porteiro(a)',
 };
 
-// ---------- Tela principal ----------
+//Tela principal 
 
 export default function TelaConfiguracoes() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -310,7 +287,7 @@ export default function TelaConfiguracoes() {
   );
 }
 
-// ---------- Estilos ----------
+// Estilos 
 
 const styles = StyleSheet.create({
   tela: {

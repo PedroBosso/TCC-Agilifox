@@ -1,28 +1,8 @@
-/**
- * TelaBotaoPanico.tsx
- *
- * Botão de Pânico para o morador. Ao pressentir ameaça ou visita indesejada,
- * o morador mantém o botão pressionado por 3 segundos (evita acionamento
- * acidental num toque rápido) para enviar um alerta imediato à portaria, que
- * decide se liga para a polícia ou age por conta própria — ver
- * TelaAlertasPanicoPortaria.tsx.
- *
- * Front-end apenas — os dados abaixo são mockados. Como não há backend
- * conectado, o "visualizado pela portaria" é simulado com um timeout local
- * só para fins de demonstração.
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. `handleAcionarAlerta` por um POST para o seu endpoint de emergência
- *      (idealmente com push notification / socket para a portaria ver na hora)
- *   2. O timeout de simulação de "visualizado" por uma atualização real vinda
- *      do servidor (polling ou websocket) refletindo a ação do porteiro
- *   3. `handleCancelarAlerta` e `handleEnviarDetalhes` por PATCH no mesmo endpoint
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Botão de Pânico do morador — segurar 3s aciona um alerta em alertas_panico, visto pela portaria em botaoPanicoPortaria.tsx.
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     FlatList,
     Modal,
@@ -35,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -43,10 +24,10 @@ type Aba = 'principal' | 'historico';
 
 interface AlertaPanico {
   id: string;
-  dataISO: string;
   status: StatusAlerta;
-  visualizadoPortariaISO?: string;
-  detalhes?: string;
+  detalhes_morador: string | null;
+  visualizado_portaria_em: string | null;
+  criado_em: string;
 }
 
 // ---------- Configuração ----------
@@ -61,10 +42,6 @@ const CONFIG_STATUS: Record<StatusAlerta, { nome: string; cor: string; fundo: st
 
 // ---------- Helpers ----------
 
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
-
 function formatarHora(dataISO: string): string {
   return new Date(dataISO).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -73,20 +50,6 @@ function formatarDataHoraExtensa(dataISO: string): string {
   const data = new Date(dataISO);
   const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
   return `${dataFormatada} às ${formatarHora(dataISO)}`;
-}
-
-// ---------- Dados mockados ----------
-
-function gerarHistoricoMock(agora: Date): AlertaPanico[] {
-  return [
-    {
-      id: 'h1',
-      dataISO: addDias(agora, -18).toISOString(),
-      status: 'cancelado',
-      visualizadoPortariaISO: addDias(agora, -18).toISOString(),
-      detalhes: 'Toque acidental, cancelado logo em seguida.',
-    },
-  ];
 }
 
 // ---------- Subcomponentes ----------
@@ -105,10 +68,10 @@ function CartaoHistorico({ alerta }: { alerta: AlertaPanico }) {
   return (
     <View style={styles.cartaoHistorico}>
       <View style={styles.cartaoHistoricoTopo}>
-        <Text style={styles.cartaoHistoricoData}>{formatarDataHoraExtensa(alerta.dataISO)}</Text>
+        <Text style={styles.cartaoHistoricoData}>{formatarDataHoraExtensa(alerta.criado_em)}</Text>
         <Selo status={alerta.status} />
       </View>
-      {alerta.detalhes && <Text style={styles.cartaoHistoricoDetalhes}>{alerta.detalhes}</Text>}
+      {alerta.detalhes_morador && <Text style={styles.cartaoHistoricoDetalhes}>{alerta.detalhes_morador}</Text>}
     </View>
   );
 }
@@ -161,23 +124,57 @@ function ModalConfirmarCancelamento({
 // ---------- Tela principal ----------
 
 export default function TelaBotaoPanico() {
-  const hoje = useRef(new Date()).current;
   const [abaAtiva, setAbaAtiva] = useState<Aba>('principal');
   const [alertaAtual, setAlertaAtual] = useState<AlertaPanico | null>(null);
-  const [historico, setHistorico] = useState<AlertaPanico[]>(() => gerarHistoricoMock(hoje));
+  const [historico, setHistorico] = useState<AlertaPanico[]>([]);
   const [detalhesTexto, setDetalhesTexto] = useState('');
   const [modalCancelarVisivel, setModalCancelarVisivel] = useState(false);
 
   const progressoAnim = useRef(new Animated.Value(0)).current;
   const timeoutAcionamentoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const timeoutVisualizacaoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    carregarAlertas();
+  }, []);
+
+  // Enquanto há um alerta ativo, refaz a busca periodicamente para refletir
+  // quando a portaria visualizar ou atender o alerta.
+  useEffect(() => {
+    if (!alertaAtual) return;
+    const intervalo = setInterval(() => {
+      carregarAlertas();
+    }, 5000);
+    return () => clearInterval(intervalo);
+  }, [alertaAtual?.id]);
 
   useEffect(() => {
     return () => {
       if (timeoutAcionamentoRef.current) clearTimeout(timeoutAcionamentoRef.current);
-      if (timeoutVisualizacaoRef.current) clearTimeout(timeoutVisualizacaoRef.current);
     };
   }, []);
+
+  async function carregarAlertas() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('alertas_panico')
+      .select('id, status, detalhes_morador, visualizado_portaria_em, criado_em')
+      .eq('morador_id', user.id)
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar seus alertas.');
+      return;
+    }
+
+    const lista = data ?? [];
+    const ativo = lista.find((a) => a.status === 'ativo') ?? null;
+    setAlertaAtual(ativo);
+    setHistorico(lista.filter((a) => a.id !== ativo?.id));
+  }
 
   function handlePressIn() {
     Animated.timing(progressoAnim, {
@@ -199,42 +196,62 @@ export default function TelaBotaoPanico() {
     Animated.timing(progressoAnim, { toValue: 0, duration: 200, useNativeDriver: false }).start();
   }
 
-  function handleAcionarAlerta() {
+  async function handleAcionarAlerta() {
     progressoAnim.setValue(0);
-    const novoAlerta: AlertaPanico = {
-      id: String(Date.now()),
-      dataISO: new Date().toISOString(),
-      status: 'ativo',
-    };
-    setAlertaAtual(novoAlerta);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('alertas_panico')
+      .insert({ morador_id: user.id, status: 'ativo' })
+      .select('id, status, detalhes_morador, visualizado_portaria_em, criado_em')
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível acionar o alerta.');
+      return;
+    }
+
+    setAlertaAtual(data);
     setDetalhesTexto('');
-
-    // Simulação apenas para demonstração — em produção isso viria do servidor
-    // quando a portaria de fato abrir/visualizar o alerta.
-    timeoutVisualizacaoRef.current = setTimeout(() => {
-      setAlertaAtual((atual) =>
-        atual && atual.id === novoAlerta.id ? { ...atual, visualizadoPortariaISO: new Date().toISOString() } : atual
-      );
-    }, 6000);
   }
 
-  function handleConfirmarCancelamento() {
+  async function handleConfirmarCancelamento() {
     if (!alertaAtual) return;
-    if (timeoutVisualizacaoRef.current) clearTimeout(timeoutVisualizacaoRef.current);
 
-    const alertaCancelado: AlertaPanico = {
-      ...alertaAtual,
-      status: 'cancelado',
-      detalhes: detalhesTexto.trim() || undefined,
-    };
-    setHistorico((atual) => [alertaCancelado, ...atual]);
-    setAlertaAtual(null);
+    const { error } = await supabase
+      .from('alertas_panico')
+      .update({ status: 'cancelado' })
+      .eq('id', alertaAtual.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível cancelar o alerta.');
+      return;
+    }
+
     setModalCancelarVisivel(false);
+    setAlertaAtual(null);
+    carregarAlertas();
   }
 
-  function handleEnviarDetalhes() {
+  async function handleEnviarDetalhes() {
     if (!alertaAtual || detalhesTexto.trim().length === 0) return;
-    setAlertaAtual({ ...alertaAtual, detalhes: detalhesTexto.trim() });
+    const texto = detalhesTexto.trim();
+
+    const { error } = await supabase
+      .from('alertas_panico')
+      .update({ detalhes_morador: texto })
+      .eq('id', alertaAtual.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível enviar os detalhes.');
+      return;
+    }
+
+    setAlertaAtual({ ...alertaAtual, detalhes_morador: texto });
   }
 
   const larguraProgresso = progressoAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
@@ -272,14 +289,14 @@ export default function TelaBotaoPanico() {
             </View>
 
             <Text style={styles.enviadoTitulo}>Alerta enviado à portaria</Text>
-            <Text style={styles.enviadoData}>Enviado às {formatarHora(alertaAtual.dataISO)}</Text>
+            <Text style={styles.enviadoData}>Enviado às {formatarHora(alertaAtual.criado_em)}</Text>
 
             <View style={styles.statusBox}>
-              {alertaAtual.visualizadoPortariaISO ? (
+              {alertaAtual.visualizado_portaria_em ? (
                 <>
                   <View style={[styles.statusPonto, { backgroundColor: '#2F855A' }]} />
                   <Text style={styles.statusTexto}>
-                    Visualizado pela portaria às {formatarHora(alertaAtual.visualizadoPortariaISO)}
+                    Visualizado pela portaria às {formatarHora(alertaAtual.visualizado_portaria_em)}
                   </Text>
                 </>
               ) : (

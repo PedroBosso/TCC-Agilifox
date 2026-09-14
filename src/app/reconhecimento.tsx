@@ -91,9 +91,8 @@ export default function Reconhecimento() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
+
   //  ESTADO: processando
-  // ══════════════════════════════════════════════════════════════
   if (estado === 'processando') {
     return (
       <View style={[styles.container, styles.centralized]}>
@@ -109,9 +108,9 @@ export default function Reconhecimento() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
+
   //  ESTADO: resultado
-  // ══════════════════════════════════════════════════════════════
+
   if (estado === 'resultado' && resultado) {
     const encontrado = resultado.encontrado;
     const confiancaPct = resultado.confianca
@@ -143,7 +142,7 @@ export default function Reconhecimento() {
         {/* Badge de status */}
         <View style={[styles.badge, { backgroundColor: encontrado ? '#d4edda' : '#f8d7da' }]}>
           <Text style={[styles.badgeText, { color: encontrado ? '#155724' : '#721c24' }]}>
-            {encontrado ? '✅ Visitante reconhecido' : '❌ Visitante não encontrado'}
+            {encontrado ? 'Visitante reconhecido' : 'Visitante não encontrado'}
           </Text>
         </View>
 
@@ -192,9 +191,9 @@ export default function Reconhecimento() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
+
   //  ESTADO: camera
-  // ══════════════════════════════════════════════════════════════
+  
   return (
     <View style={styles.cameraWrapper}>
       <CameraView ref={cameraRef} style={styles.camera} facing="front">
@@ -226,7 +225,7 @@ export default function Reconhecimento() {
   );
 }
 
-// ─── Estilos ─────────────────────────────────────────────────
+//Estilos 
 const styles = StyleSheet.create({
   container: {
     flex: 1,

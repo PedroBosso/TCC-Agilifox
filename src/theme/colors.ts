@@ -1,6 +1,4 @@
-// src/theme/colors.ts
-// 🎨 Paleta de cores centralizada
-// Mude aqui e as mudanças refletem em TODO app!
+// Paleta de cores centralizada
 
 export const colors = {
   // ── Cores Primárias ──
@@ -21,7 +19,7 @@ export const colors = {
   divider: '#d9d9d9',       // Divisor entre elementos
 
   // ── Cores de Texto ──
-  text: '#1a1a1a',          // ← MELHORADO: melhor contraste que #000
+  text: '#1a1a1a',
   textSecondary: '#666666', // Texto secundário
   textTertiary: '#999999',  // Texto terciário (hints)
   textInverse: '#ffffff',   // Texto invertido (sobre escuro)

@@ -4,7 +4,29 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { faceService } from '../../services/faceServices';
+import { supabase } from '../lib/supabase';
+
+// Converte uma string base64 (foto capturada pela câmera) em ArrayBuffer
+// para envio ao Supabase Storage, sem depender de bibliotecas externas.
+function base64ParaArrayBuffer(base64: string): ArrayBuffer {
+  const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const limpo = base64.replace(/[^A-Za-z0-9+/]/g, '');
+  const bytes = new Uint8Array(Math.floor((limpo.length * 6) / 8));
+  let byteIndex = 0;
+  let buffer = 0;
+  let bitsCollected = 0;
+  for (let i = 0; i < limpo.length; i++) {
+    const value = CHARS.indexOf(limpo[i]);
+    if (value === -1) continue;
+    buffer = (buffer << 6) | value;
+    bitsCollected += 6;
+    if (bitsCollected >= 8) {
+      bitsCollected -= 8;
+      bytes[byteIndex++] = (buffer >> bitsCollected) & 0xff;
+    }
+  }
+  return bytes.buffer;
+}
 
 const ROUTES = {
   RECONHECIMENTO: '../reconhecimento',
@@ -84,17 +106,50 @@ export default function CadastroVisitante() {
 }
   };
 
-  // ── Envia para o backend ────────────────────────────────────
+  // ── Envia para o Supabase (Storage + tabela visitantes) ─────
   const salvar = async () => {
     if (!fotoBase64) return;
     setCarregando(true);
     try {
-      await faceService.cadastrarVisitante({
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+        return;
+      }
+
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!perfil || (perfil.role !== 'sindico' && perfil.role !== 'porteiro')) {
+        Alert.alert('Erro', 'Apenas síndico ou porteiro podem cadastrar visitantes.');
+        return;
+      }
+
+      const caminho = `${user.id}/${Date.now()}.jpg`;
+      const { error: erroUpload } = await supabase.storage
+        .from('visitantes')
+        .upload(caminho, base64ParaArrayBuffer(fotoBase64), { contentType: 'image/jpeg', upsert: true });
+
+      if (erroUpload) throw erroUpload;
+
+      const { data: urlPublica } = supabase.storage.from('visitantes').getPublicUrl(caminho);
+
+      const { error: erroInsert } = await supabase.from('visitantes').insert({
         nome: nome.trim(),
         apartamento: apartamento.trim(),
-        fotoBase64,
-        dataRegistro: new Date().toISOString(),
+        foto_url: urlPublica?.publicUrl ?? caminho,
+        criado_por: user.id,
+        morador_id: null,
       });
+
+      if (erroInsert) throw erroInsert;
+
       Alert.alert('Sucesso', `${nome} foi cadastrado com sucesso!`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -142,7 +197,7 @@ export default function CadastroVisitante() {
               />
             ) : (
               <View style={styles.fotoPlaceholder}>
-                <Text style={styles.fotoPlaceholderIcon}>👤</Text>
+                <Text style={styles.fotoPlaceholderIcon}>Foto</Text>
                 <Text style={styles.fotoPlaceholderTexto}>Sem foto</Text>
               </View>
             )}

@@ -1,31 +1,6 @@
-/**
- * TelaPetsSindico.tsx
- *
- * Tela de Gestão de Pets para o síndico. Diferente da consulta da portaria
- * (TelaPetsPorteiro.tsx, que é só leitura), aqui o síndico tem uma visão de
- * conformidade — quantos pets há no total, quantos com vacinação pendente e
- * quais apartamentos ultrapassam o limite de pets previsto no regimento —
- * além de poder registrar observações administrativas e remover um cadastro
- * (ex.: morador que já se mudou).
- *
- * O síndico NÃO edita os dados do pet em si (nome, raça, características) —
- * essa informação pertence ao morador e é mantida em TelaMeusPets.tsx. O
- * papel do síndico aqui é de fiscalização, não de edição de cadastro.
- *
- * Front-end apenas — os dados abaixo são mockados (MOCK_PETS_CONDOMINIO).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `pets` por uma chamada à API que traga todos os
- *      pets cadastrados no condomínio (useEffect + fetch/axios)
- *   2. `handleSalvarObservacao` e `handleConfirmarRemocao` por chamadas
- *      POST/DELETE para o seu endpoint
- *   3. `LIMITE_PETS_POR_APTO` por um valor configurável vindo do regimento
- *      interno cadastrado no backend, em vez de uma constante fixa
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Tela de Gestão de Pets do síndico: fiscalização (conformidade, observações, remoção de cadastro) — dados vêm do Supabase.
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   SafeAreaView,
   View,
@@ -39,7 +14,9 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -61,6 +38,7 @@ interface PetCondominio {
   cor: string;
   porte: Porte;
   caracteristicas: string;
+  moradorId: string;
   tutor: string;
   apto: string;
   telefone: string;
@@ -89,125 +67,6 @@ const FILTROS: { id: FiltroEspecie; nome: string }[] = [
   { id: 'cachorro', nome: 'Cães' },
   { id: 'gato', nome: 'Gatos' },
   { id: 'outro', nome: 'Outros' },
-];
-
-// ---------- Dados mockados ----------
-// O Apto 301 propositalmente tem 3 pets (acima do limite) e 2 pets estão com
-// vacinação pendente, para já demonstrar os alertas de conformidade na tela.
-
-const MOCK_PETS_CONDOMINIO: PetCondominio[] = [
-  {
-    id: 'p1',
-    nome: 'Mel',
-    especie: 'cachorro',
-    raca: 'SRD (vira-lata)',
-    cor: 'Caramelo',
-    porte: 'medio',
-    caracteristicas: 'Usa coleira azul com plaquinha de identificação.',
-    tutor: 'Carla Mendes',
-    apto: 'Apto 204',
-    telefone: '(19) 99999-1001',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
-  {
-    id: 'p2',
-    nome: 'Thor',
-    especie: 'cachorro',
-    raca: 'Labrador',
-    cor: 'Dourado',
-    porte: 'grande',
-    caracteristicas: 'Coleira vermelha, muito agitado, late com estranhos.',
-    tutor: 'Rafael Souza',
-    apto: 'Apto 512',
-    telefone: '(19) 99999-1002',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
-  {
-    id: 'p3',
-    nome: 'Nina',
-    especie: 'gato',
-    raca: 'Siamês',
-    cor: 'Clara com pontas escuras',
-    porte: 'pequeno',
-    caracteristicas: 'Olhos azuis, pelagem curta.',
-    tutor: 'Bruna Lima',
-    apto: 'Apto 108',
-    telefone: '(19) 99999-1003',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
-  {
-    id: 'p4',
-    nome: 'Bidu',
-    especie: 'cachorro',
-    raca: 'Poodle',
-    cor: 'Branco',
-    porte: 'pequeno',
-    caracteristicas: 'Pelagem cacheada, não é castrado.',
-    tutor: 'João Ferreira',
-    apto: 'Apto 301',
-    telefone: '(19) 99999-1004',
-    vacinacaoEmDia: false,
-    observacoes: [{ id: 'o1', texto: 'Morador notificado sobre regularização da carteira de vacinação.', dataISO: '2026-07-02T14:00:00.000Z' }],
-  },
-  {
-    id: 'p5',
-    nome: 'Duque',
-    especie: 'cachorro',
-    raca: 'SRD (vira-lata)',
-    cor: 'Preto',
-    porte: 'medio',
-    caracteristicas: 'Bastante dócil, anda sempre com o Bidu.',
-    tutor: 'João Ferreira',
-    apto: 'Apto 301',
-    telefone: '(19) 99999-1004',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
-  {
-    id: 'p6',
-    nome: 'Mimi',
-    especie: 'gato',
-    raca: 'SRD (vira-lata)',
-    cor: 'Cinza',
-    porte: 'pequeno',
-    caracteristicas: 'Terceiro animal do apartamento — acima do limite do regimento.',
-    tutor: 'João Ferreira',
-    apto: 'Apto 301',
-    telefone: '(19) 99999-1004',
-    vacinacaoEmDia: false,
-    observacoes: [],
-  },
-  {
-    id: 'p7',
-    nome: 'Preta',
-    especie: 'gato',
-    raca: 'SRD (vira-lata)',
-    cor: 'Preta',
-    porte: 'pequeno',
-    caracteristicas: 'Mancha branca no peito, bastante arisca.',
-    tutor: 'Ana Paula Rocha',
-    apto: 'Apto 604',
-    telefone: '(19) 99999-1005',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
-  {
-    id: 'p8',
-    nome: 'Rex',
-    especie: 'cachorro',
-    raca: 'Pastor Alemão',
-    cor: 'Preto e caramelo',
-    porte: 'grande',
-    caracteristicas: 'Coleira de couro marrom, obediente.',
-    tutor: 'Marcos Silva',
-    apto: 'Apto 402',
-    telefone: '(19) 99999-1006',
-    vacinacaoEmDia: true,
-    observacoes: [],
-  },
 ];
 
 // ---------- Helpers ----------
@@ -251,7 +110,7 @@ interface CartaoPetProps {
 
 function CartaoPet({ pet, aptoExcedeLimite, onAdicionarObservacao, onRemover }: CartaoPetProps) {
   const config = CONFIG_ESPECIE[pet.especie];
-  const ultimaObservacao = pet.observacoes[pet.observacoes.length - 1];
+  const ultimaObservacao = pet.observacoes[0];
 
   return (
     <View style={styles.cartao}>
@@ -429,11 +288,71 @@ function ModalConfirmarRemocao({
 // ---------- Tela principal ----------
 
 export default function TelaPetsSindico() {
-  const [pets, setPets] = useState<PetCondominio[]>(MOCK_PETS_CONDOMINIO);
+  const [pets, setPets] = useState<PetCondominio[]>([]);
   const [busca, setBusca] = useState('');
   const [filtroEspecie, setFiltroEspecie] = useState<FiltroEspecie>('todos');
   const [petParaObservacao, setPetParaObservacao] = useState<PetCondominio | null>(null);
   const [petParaRemover, setPetParaRemover] = useState<PetCondominio | null>(null);
+
+  useEffect(() => {
+    carregarPets();
+  }, []);
+
+  async function carregarPets() {
+    const { data: petsData, error } = await supabase
+      .from('pets')
+      .select('id, morador_id, nome, especie, raca, cor, porte, caracteristicas, vacinacao_em_dia');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os pets do condomínio.');
+      return;
+    }
+
+    const linhas = petsData ?? [];
+    if (linhas.length === 0) {
+      setPets([]);
+      return;
+    }
+
+    const moradorIds = [...new Set(linhas.map((p) => p.morador_id))];
+    const { data: perfis } = await supabase.from('profiles').select('id, nome, apto, telefone').in('id', moradorIds);
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+
+    const petIds = linhas.map((p) => p.id);
+    const { data: observacoesData } = await supabase
+      .from('pet_observacoes')
+      .select('id, pet_id, texto, criado_em')
+      .in('pet_id', petIds)
+      .order('criado_em', { ascending: false });
+
+    const observacoesPorPet = new Map<string, Observacao[]>();
+    (observacoesData ?? []).forEach((o) => {
+      const lista = observacoesPorPet.get(o.pet_id) ?? [];
+      lista.push({ id: o.id, texto: o.texto, dataISO: o.criado_em });
+      observacoesPorPet.set(o.pet_id, lista);
+    });
+
+    setPets(
+      linhas.map((p) => {
+        const perfil = perfilPorId.get(p.morador_id);
+        return {
+          id: p.id,
+          nome: p.nome,
+          especie: p.especie,
+          raca: p.raca ?? '',
+          cor: p.cor,
+          porte: p.porte,
+          caracteristicas: p.caracteristicas ?? '',
+          moradorId: p.morador_id,
+          tutor: perfil?.nome ?? 'Morador não identificado',
+          apto: perfil?.apto ?? '-',
+          telefone: perfil?.telefone ?? '',
+          vacinacaoEmDia: p.vacinacao_em_dia ?? false,
+          observacoes: observacoesPorPet.get(p.id) ?? [],
+        };
+      })
+    );
+  }
 
   const contagemPorApto = useMemo(() => {
     const contagem: Record<string, number> = {};
@@ -457,18 +376,47 @@ export default function TelaPetsSindico() {
     });
   }, [pets, busca, filtroEspecie]);
 
-  function handleSalvarObservacao(id: string, texto: string) {
+  async function handleSalvarObservacao(id: string, texto: string) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+      return;
+    }
+
+    const { error } = await supabase.from('pet_observacoes').insert({ pet_id: id, autor_id: user.id, texto });
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível salvar a observação.');
+      return;
+    }
+
+    const { data: observacoesAtualizadas } = await supabase
+      .from('pet_observacoes')
+      .select('id, texto, criado_em')
+      .eq('pet_id', id)
+      .order('criado_em', { ascending: false });
+
     setPets((atual) =>
       atual.map((p) =>
         p.id === id
-          ? { ...p, observacoes: [...p.observacoes, { id: String(Date.now()), texto, dataISO: new Date().toISOString() }] }
+          ? {
+              ...p,
+              observacoes: (observacoesAtualizadas ?? []).map((o) => ({ id: o.id, texto: o.texto, dataISO: o.criado_em })),
+            }
           : p
       )
     );
     setPetParaObservacao(null);
   }
 
-  function handleConfirmarRemocao(id: string) {
+  async function handleConfirmarRemocao(id: string) {
+    const { error } = await supabase.from('pets').delete().eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover o cadastro do pet.');
+      return;
+    }
     setPets((atual) => atual.filter((p) => p.id !== id));
     setPetParaRemover(null);
   }

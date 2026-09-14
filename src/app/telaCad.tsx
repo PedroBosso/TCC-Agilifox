@@ -5,7 +5,15 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { faceService, Visitante } from '../../services/faceServices';
+import { supabase } from '../lib/supabase';
+
+interface Visitante {
+  id: string;
+  nome: string;
+  apartamento: string;
+  foto_url: string | null;
+  criado_em: string;
+}
 
 export default function Visitantes() {
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
@@ -13,14 +21,17 @@ export default function Visitantes() {
 
   const carregarVisitantes = useCallback(async () => {
     setCarregando(true);
-    try {
-      const lista = await faceService.listarVisitantes();
-      setVisitantes(lista);
-    } catch {
+    const { data, error } = await supabase
+      .from('visitantes')
+      .select('id, nome, apartamento, foto_url, criado_em')
+      .order('criado_em', { ascending: false });
+
+    if (error) {
       Alert.alert('Erro', 'Não foi possível carregar os visitantes.');
-    } finally {
-      setCarregando(false);
+    } else {
+      setVisitantes(data ?? []);
     }
+    setCarregando(false);
   }, []);
 
   useEffect(() => {
@@ -37,11 +48,11 @@ export default function Visitantes() {
           text: 'Remover',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await faceService.removerVisitante(visitante.id!);
-              carregarVisitantes();
-            } catch {
+            const { error } = await supabase.from('visitantes').delete().eq('id', visitante.id);
+            if (error) {
               Alert.alert('Erro', 'Não foi possível remover o visitante.');
+            } else {
+              carregarVisitantes();
             }
           },
         },
@@ -51,11 +62,8 @@ export default function Visitantes() {
 
   const renderItem = ({ item }: { item: Visitante }) => (
     <View style={styles.card}>
-      {item.fotoBase64 ? (
-        <Image
-          source={{ uri: `data:image/jpeg;base64,${item.fotoBase64}` }}
-          style={styles.foto}
-        />
+      {item.foto_url ? (
+        <Image source={{ uri: item.foto_url }} style={styles.foto} />
       ) : (
         <View style={[styles.foto, styles.fotoPlaceholder]}>
           <Text style={styles.fotoPlaceholderText}>?</Text>
@@ -64,9 +72,9 @@ export default function Visitantes() {
       <View style={styles.cardInfo}>
         <Text style={styles.cardNome}>{item.nome}</Text>
         <Text style={styles.cardApto}>Apto. {item.apartamento}</Text>
-        {item.dataRegistro && (
+        {item.criado_em && (
           <Text style={styles.cardData}>
-            {new Date(item.dataRegistro).toLocaleDateString('pt-BR')}
+            {new Date(item.criado_em).toLocaleDateString('pt-BR')}
           </Text>
         )}
       </View>

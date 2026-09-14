@@ -166,9 +166,9 @@ create policy "ambientes: escrita restrita ao síndico"
 
 alter table public.reservas_ambiente enable row level security;
 
-create policy "reservas: morador ou síndico vê"
+create policy "reservas: morador vê as próprias, síndico e porteiro veem todas"
   on public.reservas_ambiente for select to authenticated
-  using (morador_id = auth.uid() or public.is_sindico());
+  using (morador_id = auth.uid() or public.is_staff());
 
 create policy "reservas: morador cria a própria"
   on public.reservas_ambiente for insert to authenticated

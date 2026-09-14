@@ -1,25 +1,9 @@
-/**
- * TelaOcorrenciasPortaria.tsx
- *
- * Livro de Ocorrências da portaria. Diferente da tela de ocorrências do
- * morador (onde ele relata um problema e acompanha o status), aqui o
- * porteiro registra fatos do plantão — tentativas de entrada, visitantes,
- * manutenções percebidas, questões de convivência, etc. — como um livro de
- * ocorrências tradicional de portaria: uma vez registrada, a entrada não é
- * editada, apenas consultada (garante a integridade do histórico entre
- * turnos).
- *
- * Front-end apenas — os dados abaixo são mockados (gerarOcorrenciasMock).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `ocorrencias` por uma chamada à API (useEffect + fetch/axios)
- *   2. `handleRegistrarOcorrencia` por um POST para o seu endpoint
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Livro de Ocorrências da portaria — registro imutável (sem edição), dados vêm do Supabase (tabela ocorrencias).
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -33,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -80,10 +65,6 @@ function getCategoria(id: string): CategoriaInfo {
   return CATEGORIAS.find((c) => c.id === id) ?? CATEGORIAS[CATEGORIAS.length - 1];
 }
 
-function addHoras(data: Date, horas: number): Date {
-  return new Date(data.getTime() + horas * 60 * 60 * 1000);
-}
-
 function formatarDataHoraExtensa(dataISO: string): string {
   const data = new Date(dataISO);
   const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
@@ -100,64 +81,17 @@ function ehHoje(dataISO: string, hoje: Date): boolean {
   );
 }
 
-// ---------- Dados mockados ----------
-// Gerados a partir de "agora" para que a tela sempre mostre um plantão com
-// exemplos coerentes de horário, independentemente de quando o app abrir.
-
-function gerarOcorrenciasMock(agora: Date): OcorrenciaPortaria[] {
-  return [
-    {
-      id: 'o1',
-      titulo: 'Tentativa de entrada sem autorização',
-      descricao:
-        'Pessoa não identificada tentou entrar pelo portão de veículos alegando ser prestador de serviço, sem agendamento prévio. Não foi liberada a entrada.',
-      categoriaId: 'seguranca',
-      gravidade: 'urgente',
-      local: 'Portão de veículos',
-      dataISO: addHoras(agora, -1).toISOString(),
-      encaminhadaSindico: true,
-    },
-    {
-      id: 'o2',
-      titulo: 'Visitante aguardando sem contato do morador',
-      descricao: 'Visitante do Apto 604 aguardou cerca de 40 minutos na portaria sem que o morador atendesse ligações.',
-      categoriaId: 'visitante',
-      gravidade: 'atencao',
-      local: 'Portaria',
-      dataISO: addHoras(agora, -3).toISOString(),
-      encaminhadaSindico: false,
-    },
-    {
-      id: 'o3',
-      titulo: 'Barulho excessivo reportado por vizinho',
-      descricao: 'Morador do Apto 301 reportou som alto vindo do Apto 302 durante a noite. Orientado a registrar ocorrência formal pelo app.',
-      categoriaId: 'convivencia',
-      gravidade: 'normal',
-      local: 'Bloco B',
-      dataISO: addHoras(agora, -6).toISOString(),
-      encaminhadaSindico: false,
-    },
-    {
-      id: 'o4',
-      titulo: 'Lâmpada queimada no hall de entrada',
-      descricao: 'Lâmpada do hall principal queimou durante a noite, deixando o ambiente escuro. Necessário acionar manutenção.',
-      categoriaId: 'manutencao',
-      gravidade: 'normal',
-      local: 'Hall de entrada',
-      dataISO: addHoras(agora, -9).toISOString(),
-      encaminhadaSindico: true,
-    },
-    {
-      id: 'o5',
-      titulo: 'Veículo estacionado em vaga de visitante há mais de 24h',
-      descricao: 'Veículo placa XYZ-1234 ocupando vaga de visitante desde ontem. Nenhum morador reconheceu o veículo.',
-      categoriaId: 'veiculo',
-      gravidade: 'atencao',
-      local: 'Vaga de visitantes - Térreo',
-      dataISO: addHoras(agora, -28).toISOString(),
-      encaminhadaSindico: true,
-    },
-  ];
+function ocorrenciaPortariaDoBanco(row: any): OcorrenciaPortaria {
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    descricao: row.descricao,
+    categoriaId: row.categoria,
+    gravidade: (row.gravidade ?? 'normal') as Gravidade,
+    local: row.local ?? 'Não informado',
+    dataISO: row.criado_em,
+    encaminhadaSindico: row.encaminhada_sindico,
+  };
 }
 
 // ---------- Subcomponentes ----------
@@ -395,9 +329,44 @@ function ModalNovaOcorrencia({ visivel, onFechar, onRegistrar }: ModalNovaOcorre
 
 export default function TelaOcorrenciasPortaria() {
   const hoje = useMemo(() => new Date(), []);
-  const [ocorrencias, setOcorrencias] = useState<OcorrenciaPortaria[]>(() => gerarOcorrenciasMock(hoje));
+  const [ocorrencias, setOcorrencias] = useState<OcorrenciaPortaria[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroCategoria>('todas');
   const [modalVisivel, setModalVisivel] = useState(false);
+
+  useEffect(() => {
+    carregarOcorrencias();
+  }, []);
+
+  async function carregarOcorrencias() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data, error } = await supabase
+      .from('ocorrencias')
+      .select('*')
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar o livro de ocorrências.');
+      setCarregando(false);
+      return;
+    }
+
+    setOcorrencias((data ?? []).map(ocorrenciaPortariaDoBanco));
+    setCarregando(false);
+  }
 
   const ocorrenciasFiltradas = useMemo(() => {
     const lista = filtroAtivo === 'todas' ? ocorrencias : ocorrencias.filter((o) => o.categoriaId === filtroAtivo);
@@ -406,13 +375,38 @@ export default function TelaOcorrenciasPortaria() {
 
   const totalHoje = ocorrencias.filter((o) => ehHoje(o.dataISO, hoje)).length;
 
-  function handleRegistrarOcorrencia(payload: NovaOcorrenciaPayload) {
-    const novaOcorrencia: OcorrenciaPortaria = {
-      ...payload,
-      id: String(Date.now()),
-      dataISO: new Date().toISOString(),
-    };
-    setOcorrencias((atual) => [novaOcorrencia, ...atual]);
+  async function handleRegistrarOcorrencia(payload: NovaOcorrenciaPayload) {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('ocorrencias')
+      .insert({
+        autor_id: userId,
+        origem: 'porteiro',
+        categoria: payload.categoriaId,
+        gravidade: payload.gravidade,
+        titulo: payload.titulo,
+        local: payload.local,
+        descricao: payload.descricao,
+        encaminhada_sindico: payload.encaminhadaSindico,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível registrar a ocorrência.');
+      return;
+    }
+
+    setOcorrencias((atual) => [ocorrenciaPortariaDoBanco(data), ...atual]);
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={[styles.tela, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </SafeAreaView>
+    );
   }
 
   return (

@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    FlatList,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -21,31 +24,23 @@ type FiltroStatus = 'todos' | 'na_garagem' | 'fora';
 interface Veiculo {
   id: string;
   placa: string;
-  modelo: string;
-  cor: string;
+  modelo: string | null;
+  cor: string | null;
   tipo: TipoVeiculo;
+  morador_id: string;
   morador: string;
   apto: string;
-  naGaragem: boolean;
-  ultimaMovimentacaoISO: string;
+  na_garagem: boolean;
+  ultima_movimentacao: string | null;
 }
 
 interface Movimentacao {
   id: string;
-  veiculoId: string;
   tipo: TipoMovimentacao;
-  dataISO: string;
+  registrado_em: string;
 }
 
 // ---------- Helpers de data ----------
-
-function addMinutos(data: Date, minutos: number): Date {
-  return new Date(data.getTime() + minutos * 60000);
-}
-
-function addHoras(data: Date, horas: number): Date {
-  return addMinutos(data, horas * 60);
-}
 
 function formatarTempoRelativo(dataISO: string, agora: Date): string {
   const data = new Date(dataISO);
@@ -64,35 +59,6 @@ function formatarDataHoraExtensa(dataISO: string): string {
   const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
   const horaFormatada = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `${dataFormatada} às ${horaFormatada}`;
-}
-
-// ---------- Dados mockados ----------
-// Gerados a partir de "agora" para que os horários de última movimentação
-// sempre façam sentido, independentemente de quando o app for aberto.
-
-function gerarDadosMock(agora: Date): { veiculos: Veiculo[]; movimentacoes: Movimentacao[] } {
-  const veiculos: Veiculo[] = [
-    { id: 'v1', placa: 'ABC1D23', modelo: 'Honda Civic', cor: 'Prata', tipo: 'carro', morador: 'Carla Mendes', apto: 'Apto 204', naGaragem: true, ultimaMovimentacaoISO: addHoras(agora, -14).toISOString() },
-    { id: 'v2', placa: 'DEF4G56', modelo: 'Fiat Argo', cor: 'Branco', tipo: 'carro', morador: 'Rafael Souza', apto: 'Apto 305', naGaragem: false, ultimaMovimentacaoISO: addMinutos(agora, -35).toISOString() },
-    { id: 'v3', placa: 'HIJ7K89', modelo: 'Yamaha Fazer', cor: 'Preta', tipo: 'moto', morador: 'João Ferreira', apto: 'Apto 301', naGaragem: true, ultimaMovimentacaoISO: addHoras(agora, -2).toISOString() },
-    { id: 'v4', placa: 'KLM0N12', modelo: 'Toyota Corolla', cor: 'Prata', tipo: 'carro', morador: 'Bruna Lima', apto: 'Apto 108', naGaragem: true, ultimaMovimentacaoISO: addHoras(agora, -20).toISOString() },
-    { id: 'v5', placa: 'OPQ3R45', modelo: 'Jeep Renegade', cor: 'Vermelho', tipo: 'carro', morador: 'Marcos Silva', apto: 'Apto 402', naGaragem: false, ultimaMovimentacaoISO: addMinutos(agora, -8).toISOString() },
-    { id: 'v6', placa: 'STU6V78', modelo: 'Chevrolet Onix', cor: 'Azul', tipo: 'carro', morador: 'Ana Paula Rocha', apto: 'Apto 604', naGaragem: true, ultimaMovimentacaoISO: addHoras(agora, -30).toISOString() },
-    { id: 'v7', placa: 'WXY9Z01', modelo: 'Honda Biz', cor: 'Cinza', tipo: 'moto', morador: 'Pedro Alves', apto: 'Apto 512', naGaragem: false, ultimaMovimentacaoISO: addMinutos(agora, -50).toISOString() },
-    { id: 'v8', placa: 'BCD2E34', modelo: 'Volkswagen Gol', cor: 'Branco', tipo: 'carro', morador: 'Juliana Costa', apto: 'Apto 703', naGaragem: true, ultimaMovimentacaoISO: addHoras(agora, -5).toISOString() },
-  ];
-
-  const movimentacoes: Movimentacao[] = [
-    { id: 'm1', veiculoId: 'v2', tipo: 'saida', dataISO: addMinutos(agora, -35).toISOString() },
-    { id: 'm2', veiculoId: 'v2', tipo: 'entrada', dataISO: addHoras(agora, -9).toISOString() },
-    { id: 'm3', veiculoId: 'v2', tipo: 'saida', dataISO: addHoras(agora, -11).toISOString() },
-    { id: 'm4', veiculoId: 'v5', tipo: 'saida', dataISO: addMinutos(agora, -8).toISOString() },
-    { id: 'm5', veiculoId: 'v5', tipo: 'entrada', dataISO: addHoras(agora, -22).toISOString() },
-    { id: 'm6', veiculoId: 'v7', tipo: 'saida', dataISO: addMinutos(agora, -50).toISOString() },
-    { id: 'm7', veiculoId: 'v1', tipo: 'entrada', dataISO: addHoras(agora, -14).toISOString() },
-  ];
-
-  return { veiculos, movimentacoes };
 }
 
 // ---------- Subcomponentes ----------
@@ -134,7 +100,7 @@ function CartaoVeiculo({ veiculo, agora, onAbrirHistorico, onRegistrarMovimentac
         <View style={styles.cartaoInfo}>
           <Text style={styles.cartaoPlaca}>{veiculo.placa}</Text>
           <Text style={styles.cartaoModelo}>
-            {veiculo.modelo} · {veiculo.cor}
+            {veiculo.modelo || 'Modelo não informado'} · {veiculo.cor || 'Cor não informada'}
           </Text>
           <Text style={styles.cartaoMorador}>
             {veiculo.morador} · {veiculo.apto}
@@ -142,23 +108,25 @@ function CartaoVeiculo({ veiculo, agora, onAbrirHistorico, onRegistrarMovimentac
         </View>
 
         <Selo
-          texto={veiculo.naGaragem ? 'Na garagem' : 'Fora'}
-          cor={veiculo.naGaragem ? '#2F855A' : '#B7791F'}
-          fundo={veiculo.naGaragem ? '#E7F4ED' : '#FBF1DE'}
+          texto={veiculo.na_garagem ? 'Na garagem' : 'Fora'}
+          cor={veiculo.na_garagem ? '#2F855A' : '#B7791F'}
+          fundo={veiculo.na_garagem ? '#E7F4ED' : '#FBF1DE'}
         />
       </View>
 
       <View style={styles.cartaoRodape}>
         <Text style={styles.cartaoUltimaMovimentacao}>
-          {veiculo.naGaragem ? 'Entrou' : 'Saiu'} {formatarTempoRelativo(veiculo.ultimaMovimentacaoISO, agora)}
+          {veiculo.ultima_movimentacao
+            ? `${veiculo.na_garagem ? 'Entrou' : 'Saiu'} ${formatarTempoRelativo(veiculo.ultima_movimentacao, agora)}`
+            : 'Sem movimentação registrada'}
         </Text>
 
         <TouchableOpacity
-          style={[styles.botaoAcao, { backgroundColor: veiculo.naGaragem ? '#B7791F' : '#2F855A' }]}
+          style={[styles.botaoAcao, { backgroundColor: veiculo.na_garagem ? '#B7791F' : '#2F855A' }]}
           onPress={onRegistrarMovimentacao}
           activeOpacity={0.85}
         >
-          <Text style={styles.botaoAcaoTexto}>{veiculo.naGaragem ? 'Registrar saída' : 'Registrar entrada'}</Text>
+          <Text style={styles.botaoAcaoTexto}>{veiculo.na_garagem ? 'Registrar saída' : 'Registrar entrada'}</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -181,18 +149,33 @@ function EstadoVazio() {
 
 interface ModalHistoricoProps {
   veiculo: Veiculo | null;
-  movimentacoes: Movimentacao[];
   onFechar: () => void;
 }
 
-function ModalHistorico({ veiculo, movimentacoes, onFechar }: ModalHistoricoProps) {
-  const historicoOrdenado = useMemo(
-    () =>
-      movimentacoes
-        .filter((m) => m.veiculoId === veiculo?.id)
-        .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
-    [movimentacoes, veiculo]
-  );
+function ModalHistorico({ veiculo, onFechar }: ModalHistoricoProps) {
+  const [historico, setHistorico] = useState<Movimentacao[]>([]);
+
+  useEffect(() => {
+    if (!veiculo) {
+      setHistorico([]);
+      return;
+    }
+    carregarHistorico(veiculo.id);
+  }, [veiculo]);
+
+  async function carregarHistorico(veiculoId: string) {
+    const { data, error } = await supabase
+      .from('movimentacoes_veiculo')
+      .select('id, tipo, registrado_em')
+      .eq('veiculo_id', veiculoId)
+      .order('registrado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar o histórico.');
+      return;
+    }
+    setHistorico(data ?? []);
+  }
 
   return (
     <Modal visible={!!veiculo} animationType="slide" transparent onRequestClose={onFechar}>
@@ -210,14 +193,14 @@ function ModalHistorico({ veiculo, movimentacoes, onFechar }: ModalHistoricoProp
           {veiculo && (
             <>
               <Text style={styles.modalSubtitulo}>
-                {veiculo.placa} · {veiculo.modelo} · {veiculo.morador} ({veiculo.apto})
+                {veiculo.placa} · {veiculo.modelo || 'Modelo não informado'} · {veiculo.morador} ({veiculo.apto})
               </Text>
 
               <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
-                {historicoOrdenado.length === 0 ? (
+                {historico.length === 0 ? (
                   <Text style={styles.historicoVazio}>Nenhuma movimentação registrada ainda.</Text>
                 ) : (
-                  historicoOrdenado.map((mov) => (
+                  historico.map((mov) => (
                     <View key={mov.id} style={styles.linhaHistorico}>
                       <View
                         style={[
@@ -226,7 +209,7 @@ function ModalHistorico({ veiculo, movimentacoes, onFechar }: ModalHistoricoProp
                         ]}
                       />
                       <Text style={styles.linhaHistoricoTexto}>
-                        {mov.tipo === 'entrada' ? 'Entrada' : 'Saída'} · {formatarDataHoraExtensa(mov.dataISO)}
+                        {mov.tipo === 'entrada' ? 'Entrada' : 'Saída'} · {formatarDataHoraExtensa(mov.registrado_em)}
                       </Text>
                     </View>
                   ))
@@ -243,15 +226,17 @@ function ModalHistorico({ veiculo, movimentacoes, onFechar }: ModalHistoricoProp
 // ---------- Tela principal ----------
 
 export default function TelaVeiculosPortaria() {
-  const referencia = useMemo(() => new Date(), []);
-  const dadosIniciais = useMemo(() => gerarDadosMock(referencia), [referencia]);
-
-  const [veiculos, setVeiculos] = useState<Veiculo[]>(dadosIniciais.veiculos);
-  const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>(dadosIniciais.movimentacoes);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos');
   const [veiculoHistorico, setVeiculoHistorico] = useState<Veiculo | null>(null);
   const [agora, setAgora] = useState(new Date());
+
+  useEffect(() => {
+    carregarUsuarioEVeiculos();
+  }, []);
 
   // Mantém "há X min" atualizado sem precisar sair e voltar da tela.
   useEffect(() => {
@@ -259,41 +244,101 @@ export default function TelaVeiculosPortaria() {
     return () => clearInterval(intervalo);
   }, []);
 
+  async function carregarUsuarioEVeiculos() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) setUserId(user.id);
+    await carregarVeiculos();
+  }
+
+  async function carregarVeiculos() {
+    setCarregando(true);
+
+    const { data: veiculosData, error } = await supabase.from('veiculos').select('*');
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os veículos.');
+      setCarregando(false);
+      return;
+    }
+
+    const moradorIds = Array.from(new Set((veiculosData ?? []).map((v) => v.morador_id)));
+    let mapaMoradores = new Map<string, { nome: string; apto: string | null }>();
+
+    if (moradorIds.length > 0) {
+      const { data: perfis } = await supabase.from('profiles').select('id, nome, apto').in('id', moradorIds);
+      mapaMoradores = new Map((perfis ?? []).map((p) => [p.id, { nome: p.nome, apto: p.apto }]));
+    }
+
+    const veiculosCompletos: Veiculo[] = (veiculosData ?? []).map((v) => ({
+      ...v,
+      morador: mapaMoradores.get(v.morador_id)?.nome ?? 'Morador desconhecido',
+      apto: mapaMoradores.get(v.morador_id)?.apto ?? '—',
+    }));
+
+    setVeiculos(veiculosCompletos);
+    setCarregando(false);
+  }
+
   const veiculosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
     return veiculos
       .filter((v) => {
-        if (filtroStatus === 'na_garagem' && !v.naGaragem) return false;
-        if (filtroStatus === 'fora' && v.naGaragem) return false;
+        if (filtroStatus === 'na_garagem' && !v.na_garagem) return false;
+        if (filtroStatus === 'fora' && v.na_garagem) return false;
         if (termo.length === 0) return true;
 
-        const campos = [v.placa, v.modelo, v.morador, v.apto].map((c) => c.toLowerCase());
+        const campos = [v.placa, v.modelo ?? '', v.morador, v.apto].map((c) => c.toLowerCase());
         return campos.some((c) => c.includes(termo));
       })
-      .sort((a, b) => new Date(b.ultimaMovimentacaoISO).getTime() - new Date(a.ultimaMovimentacaoISO).getTime());
+      .sort(
+        (a, b) => new Date(b.ultima_movimentacao ?? 0).getTime() - new Date(a.ultima_movimentacao ?? 0).getTime()
+      );
   }, [veiculos, busca, filtroStatus]);
 
-  const totalNaGaragem = veiculos.filter((v) => v.naGaragem).length;
+  const totalNaGaragem = veiculos.filter((v) => v.na_garagem).length;
   const totalFora = veiculos.length - totalNaGaragem;
 
-  function handleRegistrarMovimentacao(veiculo: Veiculo) {
-    const novoStatus = !veiculo.naGaragem;
+  async function handleRegistrarMovimentacao(veiculo: Veiculo) {
+    if (!userId) return;
+
+    const novoStatus = !veiculo.na_garagem;
     const agoraISO = new Date().toISOString();
+    const tipo: TipoMovimentacao = novoStatus ? 'entrada' : 'saida';
 
-    setVeiculos((atual) =>
-      atual.map((v) => (v.id === veiculo.id ? { ...v, naGaragem: novoStatus, ultimaMovimentacaoISO: agoraISO } : v))
+    const { error: erroMovimentacao } = await supabase
+      .from('movimentacoes_veiculo')
+      .insert({ veiculo_id: veiculo.id, tipo, registrado_por: userId });
+
+    if (erroMovimentacao) {
+      Alert.alert('Erro', 'Não foi possível registrar a movimentação.');
+      return;
+    }
+
+    const { error: erroVeiculo } = await supabase
+      .from('veiculos')
+      .update({ na_garagem: novoStatus, ultima_movimentacao: agoraISO })
+      .eq('id', veiculo.id);
+
+    if (erroVeiculo) {
+      Alert.alert('Erro', 'Não foi possível atualizar o status do veículo.');
+      return;
+    }
+
+    carregarVeiculos();
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={[styles.tela, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
     );
-
-    setMovimentacoes((atual) => [
-      ...atual,
-      {
-        id: String(Date.now()),
-        veiculoId: veiculo.id,
-        tipo: novoStatus ? 'entrada' : 'saida',
-        dataISO: agoraISO,
-      },
-    ]);
   }
 
   return (
@@ -350,11 +395,7 @@ export default function TelaVeiculosPortaria() {
         showsVerticalScrollIndicator={false}
       />
 
-      <ModalHistorico
-        veiculo={veiculoHistorico}
-        movimentacoes={movimentacoes}
-        onFechar={() => setVeiculoHistorico(null)}
-      />
+      <ModalHistorico veiculo={veiculoHistorico} onFechar={() => setVeiculoHistorico(null)} />
     </SafeAreaView>
   );
 }

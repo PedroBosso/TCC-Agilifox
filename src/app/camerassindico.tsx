@@ -1,26 +1,33 @@
-/**
- * AdicionarCamerasSindico.tsx
- *
- * Tela para o síndico cadastrar e gerenciar câmeras do condomínio,
- * mantendo a identidade visual do painel do síndico.
- */
+// Tela para o síndico cadastrar uma nova câmera do condomínio.
 
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function AdicionarCamerasSindico() {
     const [nomeCam, setNomeCam] = useState('');
-    const [localCam, setLocalCam] = useState('');
     const [urlCam, setUrlCam] = useState('');
 
-    const handleSalvar = () => {
-        // Como não há banco de dados ainda, apenas limpamos ou alertamos
-        alert('Câmera cadastrada com sucesso! (Simulação)');
+    async function handleSalvar() {
+        if (!nomeCam.trim()) {
+            Alert.alert('Erro', 'Informe o nome da câmera.');
+            return;
+        }
+
+        const { error } = await supabase
+            .from('cameras')
+            .insert({ nome: nomeCam.trim(), area: null, url_stream: urlCam.trim() || null });
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível cadastrar a câmera.');
+            return;
+        }
+
+        Alert.alert('Sucesso', 'Câmera cadastrada com sucesso!');
         setNomeCam('');
-        setLocalCam('');
         setUrlCam('');
-    };
+    }
 
     return (
         <View style={styles.container}>
@@ -36,12 +43,12 @@ export default function AdicionarCamerasSindico() {
             </View>
 
             {/* Conteúdo scrollável */}
-            <ScrollView 
+            <ScrollView
                 style={styles.scrollContent}
                 showsVerticalScrollIndicator={true}
             >
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>Adicionar Nova Câmera ➕</Text>
+                    <Text style={styles.welcomeText}>Adicionar Nova Câmera</Text>
                     <Text style={styles.welcomeSubtext}>Insira os dados do dispositivo para integrá-lo ao sistema.</Text>
                 </View>
 
@@ -49,7 +56,7 @@ export default function AdicionarCamerasSindico() {
                 <View style={styles.formContainer}>
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Nome da Câmera</Text>
-                        <TextInput 
+                        <TextInput
                             style={styles.input}
                             placeholder="Ex: Câmera Portaria Lateral"
                             placeholderTextColor="#999"
@@ -59,19 +66,8 @@ export default function AdicionarCamerasSindico() {
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Localização / Setor</Text>
-                        <TextInput 
-                            style={styles.input}
-                            placeholder="Ex: Corredor do Bloco C"
-                            placeholderTextColor="#999"
-                            value={localCam}
-                            onChangeText={setLocalCam}
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
                         <Text style={styles.label}>URL do Stream / IP</Text>
-                        <TextInput 
+                        <TextInput
                             style={styles.input}
                             placeholder="Ex: rtsp://192.168.1.50:554/stream"
                             placeholderTextColor="#999"
@@ -80,7 +76,7 @@ export default function AdicionarCamerasSindico() {
                         />
                     </View>
 
-                    <Pressable 
+                    <Pressable
                         style={({ pressed }) => [
                             styles.submitButton,
                             pressed && { opacity: 0.85 }

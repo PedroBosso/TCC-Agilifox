@@ -1,27 +1,9 @@
-/**
- * TelaEncomendasMorador.tsx
- *
- * Tela de Encomendas para o morador. Ele acompanha os pacotes que chegaram
- * na portaria (ou que ainda estão a caminho) e, quando a transportadora
- * fornece um código de confirmação de entrega, pode inserir esse código no
- * app — ele fica marcado como "visível para a portaria", para que o
- * porteiro confirme com o entregador antes de liberar o pacote (mesma ideia
- * de código de retirada usada por alguns apps de entrega, como proteção
- * contra fraude/extravio).
- *
- * Front-end apenas — os dados abaixo são mockados (gerarEncomendasMock).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `encomendas` por uma chamada à API (useEffect + fetch/axios)
- *   2. `handleSalvarCodigo` e `handleRegistrarEncomenda` por chamadas
- *      POST/PATCH para o seu endpoint — é esse PATCH que faria o código
- *      aparecer para o porteiro na tela dele
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Tela de Encomendas do morador — código de confirmação de entrega fica visível para a portaria. Dados vêm do Supabase (tabela encomendas).
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -35,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -61,10 +44,6 @@ const CONFIG_STATUS: Record<StatusEncomenda, { nome: string; cor: string; fundo:
 
 // ---------- Helpers ----------
 
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
-
 function formatarDataRelativa(dataISO: string): string {
   const data = new Date(dataISO);
   const agora = new Date();
@@ -76,37 +55,27 @@ function formatarDataRelativa(dataISO: string): string {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
-// ---------- Dados mockados ----------
+// Tenta interpretar o texto livre de "previsão" como uma data (coluna data_prevista é do tipo date no banco).
+// Se não for possível, a encomenda é registrada sem previsão.
+function paraDataPrevista(texto: string): string | null {
+  if (!texto.trim()) return null;
+  const data = new Date(texto);
+  if (Number.isNaN(data.getTime())) return null;
+  return data.toISOString().slice(0, 10);
+}
 
-function gerarEncomendasMock(hoje: Date): Encomenda[] {
-  return [
-    {
-      id: 'e1',
-      remetente: 'Mercado Livre',
-      status: 'na_portaria',
-      dataChegadaISO: hoje.toISOString(),
-    },
-    {
-      id: 'e2',
-      remetente: 'Amazon',
-      status: 'na_portaria',
-      dataChegadaISO: addDias(hoje, -1).toISOString(),
-      codigoEntrega: 'K7X92P',
-    },
-    {
-      id: 'e3',
-      remetente: 'Correios - Carta registrada',
-      previsao: 'Até sexta-feira',
-      status: 'aguardando',
-    },
-    {
-      id: 'e4',
-      remetente: 'Shopee',
-      status: 'retirada',
-      dataChegadaISO: addDias(hoje, -4).toISOString(),
-      dataRetiradaISO: addDias(hoje, -3).toISOString(),
-    },
-  ];
+function linhaEncomendaDoBanco(row: any): Encomenda {
+  return {
+    id: row.id,
+    remetente: row.remetente ?? 'Remetente não informado',
+    previsao: row.data_prevista
+      ? new Date(row.data_prevista).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+      : undefined,
+    status: row.status,
+    dataChegadaISO: row.data_chegada ?? undefined,
+    dataRetiradaISO: row.data_retirada ?? undefined,
+    codigoEntrega: row.codigo_entrega ?? undefined,
+  };
 }
 
 // ---------- Subcomponentes ----------
@@ -303,7 +272,7 @@ function ModalNovaEncomenda({ visivel, onFechar, onRegistrar }: ModalNovaEncomen
     if (!podeRegistrar) return;
     onRegistrar({
       remetente: remetente.trim(),
-      previsao: previsao.trim() || 'Não informada',
+      previsao: previsao.trim(),
       codigoEntrega: codigo.trim() ? codigo.trim().toUpperCase() : undefined,
     });
     limparEFechar();
@@ -372,11 +341,55 @@ function ModalNovaEncomenda({ visivel, onFechar, onRegistrar }: ModalNovaEncomen
 // ---------- Tela principal ----------
 
 export default function TelaEncomendasMorador() {
-  const hoje = useMemo(() => new Date(), []);
-  const [encomendas, setEncomendas] = useState<Encomenda[]>(() => gerarEncomendasMock(hoje));
+  const [encomendas, setEncomendas] = useState<Encomenda[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [apto, setApto] = useState<string | null>(null);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('aberto');
   const [encomendaCodigo, setEncomendaCodigo] = useState<Encomenda | null>(null);
   const [modalNovaVisivel, setModalNovaVisivel] = useState(false);
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  async function carregarDados() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    setUserId(user.id);
+
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('apto')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    setApto(perfil?.apto ?? null);
+
+    const { data, error } = await supabase
+      .from('encomendas')
+      .select('*')
+      .eq('morador_id', user.id)
+      .order('data_chegada', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar suas encomendas.');
+      setCarregando(false);
+      return;
+    }
+
+    setEncomendas((data ?? []).map(linhaEncomendaDoBanco));
+    setCarregando(false);
+  }
 
   const encomendasAbertas = useMemo(
     () => encomendas.filter((e) => e.status !== 'retirada'),
@@ -392,25 +405,60 @@ export default function TelaEncomendasMorador() {
 
   const totalNaPortaria = encomendas.filter((e) => e.status === 'na_portaria').length;
 
-  function handleSalvarCodigo(id: string, codigo: string) {
+  async function handleSalvarCodigo(id: string, codigo: string) {
+    const { error } = await supabase.from('encomendas').update({ codigo_entrega: codigo }).eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível salvar o código.');
+      return;
+    }
+
     setEncomendas((atual) => atual.map((e) => (e.id === id ? { ...e, codigoEntrega: codigo } : e)));
     setEncomendaCodigo(null);
   }
 
-  function handleRemoverCodigo(id: string) {
+  async function handleRemoverCodigo(id: string) {
+    const { error } = await supabase.from('encomendas').update({ codigo_entrega: null }).eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover o código.');
+      return;
+    }
+
     setEncomendas((atual) => atual.map((e) => (e.id === id ? { ...e, codigoEntrega: undefined } : e)));
     setEncomendaCodigo(null);
   }
 
-  function handleRegistrarEncomenda(payload: NovaEncomendaPayload) {
-    const novaEncomenda: Encomenda = {
-      id: String(Date.now()),
-      remetente: payload.remetente,
-      previsao: payload.previsao,
-      status: 'aguardando',
-      codigoEntrega: payload.codigoEntrega,
-    };
-    setEncomendas((atual) => [novaEncomenda, ...atual]);
+  async function handleRegistrarEncomenda(payload: NovaEncomendaPayload) {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('encomendas')
+      .insert({
+        morador_id: userId,
+        apartamento: apto ?? '',
+        remetente: payload.remetente,
+        data_prevista: paraDataPrevista(payload.previsao),
+        codigo_entrega: payload.codigoEntrega ?? null,
+        status: 'aguardando',
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível registrar a encomenda.');
+      return;
+    }
+
+    setEncomendas((atual) => [linhaEncomendaDoBanco(data), ...atual]);
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={[styles.tela, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </SafeAreaView>
+    );
   }
 
   return (

@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -13,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -24,10 +27,10 @@ type FiltroStatus = 'todas' | StatusReservaExibicao;
 interface Ambiente {
   id: string;
   nome: string;
-  capacidade: number;
+  capacidade: number | null;
   taxa: number | null;
-  regras: string;
-  cor: string;
+  regras: string | null;
+  cor: string | null;
   ativo: boolean;
 }
 
@@ -39,13 +42,15 @@ interface HorarioPadrao {
 interface Reserva {
   id: string;
   ambienteId: string;
+  ambienteNome: string;
+  ambienteCor: string | null;
   morador: string;
   apto: string;
   dataISO: string;
   horarioId: string;
   status: StatusReservaBase;
-  observacao?: string;
-  motivoRecusa?: string;
+  observacao?: string | null;
+  motivoRecusa?: string | null;
 }
 
 // ---------- Configuração ----------
@@ -68,16 +73,16 @@ const CONFIG_STATUS: Record<StatusReservaExibicao, { nome: string; cor: string; 
 
 // ---------- Helpers ----------
 
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
+const COR_PADRAO = PALETA_AMBIENTE[0];
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function formatarDataExtensa(dataISO: string): string {
-  return new Date(dataISO).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  const [ano, mes, dia] = dataISO.split('-').map(Number);
+  const data = new Date(ano, mes - 1, dia);
+  return data.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 }
 
 function getHorario(id: string): HorarioPadrao {
@@ -90,130 +95,6 @@ function calcularStatusExibicao(reserva: Reserva, hoje: Date): StatusReservaExib
   if (reserva.status === 'pendente') return 'pendente';
   const dataReserva = new Date(reserva.dataISO + 'T00:00:00');
   return dataReserva < new Date(hoje.toISOString().split('T')[0] + 'T00:00:00') ? 'concluida' : 'confirmada';
-}
-
-// ---------- Dados mockados ----------
-
-function gerarDadosMock(hoje: Date): { ambientes: Ambiente[]; reservas: Reserva[] } {
-  const ambientes: Ambiente[] = [
-    {
-      id: 'salao_festas',
-      nome: 'Salão de Festas',
-      capacidade: 80,
-      taxa: 150,
-      regras: 'Devolução da chave até 10h do dia seguinte. Limpeza por conta do morador.',
-      cor: PALETA_AMBIENTE[0],
-      ativo: true,
-    },
-    {
-      id: 'churrasqueira_1',
-      nome: 'Churrasqueira 1',
-      capacidade: 20,
-      taxa: 60,
-      regras: 'Uso permitido até as 22h. Traga seus próprios utensílios.',
-      cor: PALETA_AMBIENTE[1],
-      ativo: true,
-    },
-    {
-      id: 'churrasqueira_2',
-      nome: 'Churrasqueira 2',
-      capacidade: 20,
-      taxa: 60,
-      regras: 'Uso permitido até as 22h. Traga seus próprios utensílios.',
-      cor: PALETA_AMBIENTE[2],
-      ativo: true,
-    },
-    {
-      id: 'quadra',
-      nome: 'Quadra Poliesportiva',
-      capacidade: 12,
-      taxa: null,
-      regras: 'Uso gratuito. Máximo de 2h por reserva em horários concorridos.',
-      cor: PALETA_AMBIENTE[3],
-      ativo: true,
-    },
-    {
-      id: 'espaco_gourmet',
-      nome: 'Espaço Gourmet',
-      capacidade: 30,
-      taxa: 100,
-      regras: 'Inclui forno e churrasqueira elétrica. Reserva com 48h de antecedência.',
-      cor: PALETA_AMBIENTE[4],
-      ativo: true,
-    },
-    {
-      id: 'sala_jogos',
-      nome: 'Sala de Jogos',
-      capacidade: 15,
-      taxa: 40,
-      regras: 'Uso do console e mesa de sinuca. Máximo de 3h por reserva.',
-      cor: PALETA_AMBIENTE[5],
-      ativo: true,
-    },
-  ];
-
-  const reservas: Reserva[] = [
-    {
-      id: 'r1',
-      ambienteId: 'salao_festas',
-      morador: 'Carla Mendes',
-      apto: 'Apto 204',
-      dataISO: addDias(hoje, 3).toISOString(),
-      horarioId: 'noite',
-      status: 'pendente',
-      observacao: 'Aniversário de 15 anos da minha filha, cerca de 40 convidados.',
-    },
-    {
-      id: 'r2',
-      ambienteId: 'churrasqueira_1',
-      morador: 'Rafael Souza',
-      apto: 'Apto 305',
-      dataISO: addDias(hoje, 1).toISOString(),
-      horarioId: 'tarde',
-      status: 'confirmada',
-      observacao: 'Almoço em família.',
-    },
-    {
-      id: 'r3',
-      ambienteId: 'sala_jogos',
-      morador: 'João Ferreira',
-      apto: 'Apto 301',
-      dataISO: addDias(hoje, 2).toISOString(),
-      horarioId: 'noite',
-      status: 'pendente',
-      observacao: 'Torneio de sinuca com os amigos do bloco.',
-    },
-    {
-      id: 'r4',
-      ambienteId: 'quadra',
-      morador: 'Bruna Lima',
-      apto: 'Apto 108',
-      dataISO: addDias(hoje, 4).toISOString(),
-      horarioId: 'manha',
-      status: 'confirmada',
-    },
-    {
-      id: 'r5',
-      ambienteId: 'espaco_gourmet',
-      morador: 'Marcos Silva',
-      apto: 'Apto 402',
-      dataISO: addDias(hoje, -2).toISOString(),
-      horarioId: 'noite',
-      status: 'recusada',
-      motivoRecusa: 'Conflito com manutenção agendada no mesmo horário.',
-    },
-    {
-      id: 'r6',
-      ambienteId: 'churrasqueira_2',
-      morador: 'Ana Paula Rocha',
-      apto: 'Apto 604',
-      dataISO: addDias(hoje, -5).toISOString(),
-      horarioId: 'tarde',
-      status: 'confirmada',
-    },
-  ];
-
-  return { ambientes, reservas };
 }
 
 // ---------- Subcomponentes ----------
@@ -238,22 +119,21 @@ function Selo({ status }: { status: StatusReservaExibicao }) {
 
 interface CartaoReservaProps {
   reserva: Reserva;
-  ambiente: Ambiente;
   hoje: Date;
   onAprovar: () => void;
   onRecusar: () => void;
   onCancelar: () => void;
 }
 
-function CartaoReserva({ reserva, ambiente, hoje, onAprovar, onRecusar, onCancelar }: CartaoReservaProps) {
+function CartaoReserva({ reserva, hoje, onAprovar, onRecusar, onCancelar }: CartaoReservaProps) {
   const status = calcularStatusExibicao(reserva, hoje);
   const horario = getHorario(reserva.horarioId);
 
   return (
-    <View style={[styles.cartao, { borderLeftColor: ambiente.cor }]}>
+    <View style={[styles.cartao, { borderLeftColor: reserva.ambienteCor ?? COR_PADRAO }]}>
       <View style={styles.cartaoTopo}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cartaoAmbiente}>{ambiente.nome}</Text>
+          <Text style={styles.cartaoAmbiente}>{reserva.ambienteNome}</Text>
           <Text style={styles.cartaoMorador}>
             {reserva.morador} · {reserva.apto}
           </Text>
@@ -298,13 +178,13 @@ function LinhaAmbiente({ ambiente, onEditar, onAlternarAtivo }: LinhaAmbientePro
   return (
     <View style={styles.linhaAmbiente}>
       <View style={styles.linhaAmbienteTopo}>
-        <View style={[styles.linhaAmbienteIcone, { backgroundColor: ambiente.cor }]}>
+        <View style={[styles.linhaAmbienteIcone, { backgroundColor: ambiente.cor ?? COR_PADRAO }]}>
           <Text style={styles.linhaAmbienteIconeTexto}>{ambiente.nome.charAt(0)}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.linhaAmbienteNome}>{ambiente.nome}</Text>
           <Text style={styles.linhaAmbienteDetalhe}>
-            Até {ambiente.capacidade} pessoas · {ambiente.taxa ? formatarMoeda(ambiente.taxa) : 'Gratuito'}
+            Até {ambiente.capacidade ?? '—'} pessoas · {ambiente.taxa ? formatarMoeda(ambiente.taxa) : 'Gratuito'}
           </Text>
         </View>
         <Selo
@@ -312,7 +192,7 @@ function LinhaAmbiente({ ambiente, onEditar, onAlternarAtivo }: LinhaAmbientePro
         />
       </View>
 
-      <Text style={styles.linhaAmbienteRegras}>{ambiente.regras}</Text>
+      <Text style={styles.linhaAmbienteRegras}>{ambiente.regras ?? 'Sem regras específicas cadastradas.'}</Text>
 
       <View style={styles.linhaAmbienteAcoes}>
         <TouchableOpacity onPress={onEditar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -547,11 +427,11 @@ function ModalAmbiente({ visivel, ambienteEditando, onFechar, onSalvar }: ModalA
 
 export default function TelaGerenciarAmbientesSindico() {
   const hoje = useMemo(() => new Date(), []);
-  const dadosIniciais = useMemo(() => gerarDadosMock(hoje), [hoje]);
 
+  const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('reservas');
-  const [ambientes, setAmbientes] = useState<Ambiente[]>(dadosIniciais.ambientes);
-  const [reservas, setReservas] = useState<Reserva[]>(dadosIniciais.reservas);
+  const [ambientes, setAmbientes] = useState<Ambiente[]>([]);
+  const [reservas, setReservas] = useState<Reserva[]>([]);
 
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todas');
   const [filtroAmbienteId, setFiltroAmbienteId] = useState<string>('todos');
@@ -561,8 +441,64 @@ export default function TelaGerenciarAmbientesSindico() {
   const [modalAmbienteVisivel, setModalAmbienteVisivel] = useState(false);
   const [ambienteEditando, setAmbienteEditando] = useState<Ambiente | null>(null);
 
-  function getAmbiente(id: string): Ambiente {
-    return ambientes.find((a) => a.id === id) ?? ambientes[0];
+  useEffect(() => {
+    carregarAmbientes();
+    carregarReservas();
+  }, []);
+
+  async function carregarAmbientes() {
+    const { data, error } = await supabase
+      .from('ambientes')
+      .select('id, nome, capacidade, taxa, regras, cor, ativo')
+      .order('nome');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os ambientes.');
+      return;
+    }
+    setAmbientes(data ?? []);
+  }
+
+  async function carregarReservas() {
+    const { data, error } = await supabase
+      .from('reservas_ambiente')
+      .select('id, ambiente_id, morador_id, data, horario, status, observacao, motivo_recusa, ambientes(nome, cor)')
+      .order('data', { ascending: true });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as reservas.');
+      setCarregando(false);
+      return;
+    }
+
+    const linhas = data ?? [];
+    const moradorIds = Array.from(new Set(linhas.map((r: any) => r.morador_id)));
+    let moradoresPorId = new Map<string, { nome: string; apto: string | null }>();
+
+    if (moradorIds.length > 0) {
+      const { data: perfis } = await supabase.from('profiles').select('id, nome, apto').in('id', moradorIds);
+      moradoresPorId = new Map((perfis ?? []).map((p) => [p.id, { nome: p.nome, apto: p.apto }]));
+    }
+
+    setReservas(
+      linhas.map((r: any) => {
+        const morador = moradoresPorId.get(r.morador_id);
+        return {
+          id: r.id,
+          ambienteId: r.ambiente_id,
+          ambienteNome: r.ambientes?.nome ?? 'Ambiente removido',
+          ambienteCor: r.ambientes?.cor ?? null,
+          morador: morador?.nome ?? 'Morador',
+          apto: morador?.apto ?? '—',
+          dataISO: r.data,
+          horarioId: r.horario,
+          status: r.status,
+          observacao: r.observacao,
+          motivoRecusa: r.motivo_recusa,
+        };
+      })
+    );
+    setCarregando(false);
   }
 
   const reservasFiltradas = useMemo(() => {
@@ -574,18 +510,38 @@ export default function TelaGerenciarAmbientesSindico() {
 
   const totalPendentes = reservas.filter((r) => calcularStatusExibicao(r, hoje) === 'pendente').length;
 
-  function handleAprovar(id: string) {
+  async function handleAprovar(id: string) {
+    const { error } = await supabase.from('reservas_ambiente').update({ status: 'confirmada' }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível aprovar a reserva.');
+      return;
+    }
     setReservas((atual) => atual.map((r) => (r.id === id ? { ...r, status: 'confirmada' } : r)));
   }
 
-  function handleConfirmarRecusa(id: string, motivo: string) {
+  async function handleConfirmarRecusa(id: string, motivo: string) {
+    const { error } = await supabase
+      .from('reservas_ambiente')
+      .update({ status: 'recusada', motivo_recusa: motivo || null })
+      .eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível recusar a reserva.');
+      return;
+    }
+
     setReservas((atual) =>
       atual.map((r) => (r.id === id ? { ...r, status: 'recusada', motivoRecusa: motivo || undefined } : r))
     );
     setReservaParaRecusar(null);
   }
 
-  function handleConfirmarCancelamento(id: string) {
+  async function handleConfirmarCancelamento(id: string) {
+    const { error } = await supabase.from('reservas_ambiente').update({ status: 'cancelada' }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível cancelar a reserva.');
+      return;
+    }
     setReservas((atual) => atual.map((r) => (r.id === id ? { ...r, status: 'cancelada' } : r)));
     setReservaParaCancelar(null);
   }
@@ -600,18 +556,53 @@ export default function TelaGerenciarAmbientesSindico() {
     setModalAmbienteVisivel(true);
   }
 
-  function handleSalvarAmbiente(dados: Omit<Ambiente, 'id' | 'cor' | 'ativo'>, idEdicao: string | null) {
+  async function handleSalvarAmbiente(dados: Omit<Ambiente, 'id' | 'cor' | 'ativo'>, idEdicao: string | null) {
     if (idEdicao) {
+      const { error } = await supabase.from('ambientes').update(dados).eq('id', idEdicao);
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível salvar as alterações do ambiente.');
+        return;
+      }
       setAmbientes((atual) => atual.map((a) => (a.id === idEdicao ? { ...a, ...dados } : a)));
     } else {
       const proximaCor = PALETA_AMBIENTE[ambientes.length % PALETA_AMBIENTE.length];
-      setAmbientes((atual) => [...atual, { ...dados, id: String(Date.now()), cor: proximaCor, ativo: true }]);
+      const { data, error } = await supabase
+        .from('ambientes')
+        .insert({ ...dados, cor: proximaCor })
+        .select()
+        .single();
+
+      if (error || !data) {
+        Alert.alert('Erro', 'Não foi possível criar o ambiente.');
+        return;
+      }
+      setAmbientes((atual) => [...atual, data]);
     }
     setModalAmbienteVisivel(false);
   }
 
-  function handleAlternarAtivoAmbiente(id: string) {
-    setAmbientes((atual) => atual.map((a) => (a.id === id ? { ...a, ativo: !a.ativo } : a)));
+  async function handleAlternarAtivoAmbiente(id: string) {
+    const ambienteAtual = ambientes.find((a) => a.id === id);
+    if (!ambienteAtual) return;
+    const novoAtivo = !ambienteAtual.ativo;
+
+    const { error } = await supabase.from('ambientes').update({ ativo: novoAtivo }).eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível atualizar o ambiente.');
+      return;
+    }
+    setAmbientes((atual) => atual.map((a) => (a.id === id ? { ...a, ativo: novoAtivo } : a)));
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.listaVaziaContainer}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -693,7 +684,6 @@ export default function TelaGerenciarAmbientesSindico() {
             renderItem={({ item }) => (
               <CartaoReserva
                 reserva={item}
-                ambiente={getAmbiente(item.ambienteId)}
                 hoje={hoje}
                 onAprovar={() => handleAprovar(item.id)}
                 onRecusar={() => setReservaParaRecusar(item)}

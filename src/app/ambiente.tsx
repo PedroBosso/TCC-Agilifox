@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -15,20 +17,21 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
-type StatusReserva = 'pendente' | 'confirmada' | 'cancelada';
+type StatusReserva = 'pendente' | 'confirmada' | 'recusada' | 'cancelada';
 type StatusExibicao = StatusReserva | 'concluida';
 type Aba = 'reservar' | 'minhas';
 
 interface Ambiente {
   id: string;
   nome: string;
-  capacidade: number;
+  capacidade: number | null;
   taxa: number | null;
-  regras: string;
-  cor: string;
+  regras: string | null;
+  cor: string | null;
 }
 
 interface HorarioPadrao {
@@ -42,54 +45,22 @@ interface Reserva {
   dataISO: string; // 'YYYY-MM-DD'
   horarioId: string;
   status: StatusReserva;
-  deQuemEh: 'eu' | 'outro';
-  observacao?: string;
+  observacao?: string | null;
+  motivoRecusa?: string | null;
 }
 
-// ---------- Dados fixos ----------
+// ---------- Configuração fixa (o horário é um enum fixo no banco) ----------
 
-const AMBIENTES: Ambiente[] = [
-  {
-    id: 'salao_festas',
-    nome: 'Salão de Festas',
-    capacidade: 80,
-    taxa: 150,
-    regras: 'Devolução da chave até 10h do dia seguinte. Limpeza por conta do morador.',
-    cor: '#7E57A6',
-  },
-  {
-    id: 'churrasqueira_1',
-    nome: 'Churrasqueira 1',
-    capacidade: 20,
-    taxa: 60,
-    regras: 'Uso permitido até as 22h. Traga seus próprios utensílios.',
-    cor: '#C0392B',
-  },
-  {
-    id: 'churrasqueira_2',
-    nome: 'Churrasqueira 2',
-    capacidade: 20,
-    taxa: 60,
-    regras: 'Uso permitido até as 22h. Traga seus próprios utensílios.',
-    cor: '#B7791F',
-  },
-  {
-    id: 'quadra',
-    nome: 'Quadra Poliesportiva',
-    capacidade: 12,
-    taxa: null,
-    regras: 'Uso gratuito. Máximo de 2h por reserva em horários concorridos.',
-    cor: '#3D6FB4',
-  },
-  {
-    id: 'espaco_gourmet',
-    nome: 'Espaço Gourmet',
-    capacidade: 30,
-    taxa: 100,
-    regras: 'Inclui forno e churrasqueira elétrica. Reserva com 48h de antecedência.',
-    cor: '#2F855A',
-  },
-];
+const COR_PADRAO = '#7E57A6';
+
+const AMBIENTE_PLACEHOLDER: Ambiente = {
+  id: '',
+  nome: '...',
+  capacidade: null,
+  taxa: null,
+  regras: null,
+  cor: COR_PADRAO,
+};
 
 const HORARIOS_PADRAO: HorarioPadrao[] = [
   { id: 'manha', label: '08:00 – 12:00' },
@@ -134,77 +105,13 @@ function mesmoDia(a: Date, b: Date): boolean {
   return formatarDataISO(a) === formatarDataISO(b);
 }
 
-// ---------- Dados mockados de reservas ----------
-// Gerados a partir de "hoje" para que a tela sempre mostre exemplos relevantes,
-// independentemente da data em que o app for aberto.
-
-function gerarReservasMock(): Reserva[] {
-  const hoje = new Date();
-  return [
-    {
-      id: 'r1',
-      ambienteId: 'salao_festas',
-      dataISO: formatarDataISO(addDias(hoje, 2)),
-      horarioId: 'noite',
-      status: 'confirmada',
-      deQuemEh: 'outro',
-    },
-    {
-      id: 'r2',
-      ambienteId: 'churrasqueira_1',
-      dataISO: formatarDataISO(addDias(hoje, 1)),
-      horarioId: 'tarde',
-      status: 'confirmada',
-      deQuemEh: 'eu',
-      observacao: 'Aniversário do meu filho, cerca de 15 pessoas.',
-    },
-    {
-      id: 'r3',
-      ambienteId: 'quadra',
-      dataISO: formatarDataISO(addDias(hoje, 1)),
-      horarioId: 'manha',
-      status: 'confirmada',
-      deQuemEh: 'outro',
-    },
-    {
-      id: 'r4',
-      ambienteId: 'espaco_gourmet',
-      dataISO: formatarDataISO(addDias(hoje, 4)),
-      horarioId: 'noite',
-      status: 'pendente',
-      deQuemEh: 'eu',
-      observacao: 'Jantar de confraternização do trabalho.',
-    },
-    {
-      id: 'r5',
-      ambienteId: 'salao_festas',
-      dataISO: formatarDataISO(addDias(hoje, -6)),
-      horarioId: 'tarde',
-      status: 'confirmada',
-      deQuemEh: 'eu',
-      observacao: 'Chá de bebê da minha esposa.',
-    },
-    {
-      id: 'r6',
-      ambienteId: 'churrasqueira_2',
-      dataISO: formatarDataISO(addDias(hoje, -2)),
-      horarioId: 'noite',
-      status: 'cancelada',
-      deQuemEh: 'eu',
-    },
-  ];
-}
-
-function getAmbiente(id: string): Ambiente {
-  return AMBIENTES.find((a) => a.id === id) ?? AMBIENTES[0];
-}
-
 function getHorario(id: string): HorarioPadrao {
   return HORARIOS_PADRAO.find((h) => h.id === id) ?? HORARIOS_PADRAO[0];
 }
 
 function calcularStatusExibicao(reserva: Reserva, hoje: Date): StatusExibicao {
   if (reserva.status === 'cancelada') return 'cancelada';
+  if (reserva.status === 'recusada') return 'recusada';
   const dataReserva = new Date(reserva.dataISO + 'T00:00:00');
   if (dataReserva < new Date(formatarDataISO(hoje) + 'T00:00:00') && reserva.status === 'confirmada') {
     return 'concluida';
@@ -215,6 +122,7 @@ function calcularStatusExibicao(reserva: Reserva, hoje: Date): StatusExibicao {
 const CONFIG_STATUS: Record<StatusExibicao, { nome: string; cor: string; fundo: string }> = {
   pendente: { nome: 'Pendente', cor: '#B7791F', fundo: '#FBF1DE' },
   confirmada: { nome: 'Confirmada', cor: '#2F855A', fundo: '#E7F4ED' },
+  recusada: { nome: 'Recusada', cor: '#C0392B', fundo: '#FBEAE8' },
   cancelada: { nome: 'Cancelada', cor: '#C0392B', fundo: '#FBEAE8' },
   concluida: { nome: 'Concluída', cor: '#8A8377', fundo: '#F0ECE5' },
 };
@@ -242,12 +150,12 @@ function CartaoAmbiente({ ambiente, selecionado, onPress }: CartaoAmbienteProps)
     <TouchableOpacity
       style={[
         styles.cartaoAmbiente,
-        selecionado && { borderColor: ambiente.cor, backgroundColor: '#FFFFFF' },
+        selecionado && { borderColor: ambiente.cor ?? COR_PADRAO, backgroundColor: '#FFFFFF' },
       ]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <View style={[styles.cartaoAmbienteIcone, { backgroundColor: ambiente.cor }]}>
+      <View style={[styles.cartaoAmbienteIcone, { backgroundColor: ambiente.cor ?? COR_PADRAO }]}>
         <Text style={styles.cartaoAmbienteIconeTexto}>{ambiente.nome.charAt(0)}</Text>
       </View>
       <Text style={styles.cartaoAmbienteNome} numberOfLines={2}>
@@ -321,21 +229,22 @@ function BotaoHorario({ horario, ocupado, selecionado, onPress }: BotaoHorarioPr
 
 interface CartaoMinhaReservaProps {
   reserva: Reserva;
+  ambiente: Ambiente;
   hoje: Date;
   onCancelar: (id: string) => void;
 }
 
-function CartaoMinhaReserva({ reserva, hoje, onCancelar }: CartaoMinhaReservaProps) {
-  const ambiente = getAmbiente(reserva.ambienteId);
+function CartaoMinhaReserva({ reserva, ambiente, hoje, onCancelar }: CartaoMinhaReservaProps) {
   const horario = getHorario(reserva.horarioId);
   const statusExibicao = calcularStatusExibicao(reserva, hoje);
   const podeCancelar = statusExibicao === 'pendente' || statusExibicao === 'confirmada';
+  const cor = ambiente.cor ?? COR_PADRAO;
 
   return (
-    <View style={[styles.cartaoReserva, { borderLeftColor: ambiente.cor }]}>
+    <View style={[styles.cartaoReserva, { borderLeftColor: cor }]}>
       <View style={styles.cartaoReservaTopo}>
         <View style={styles.cartaoReservaTopoEsquerda}>
-          <View style={[styles.cartaoReservaIcone, { backgroundColor: ambiente.cor }]}>
+          <View style={[styles.cartaoReservaIcone, { backgroundColor: cor }]}>
             <Text style={styles.cartaoReservaIconeTexto}>{ambiente.nome.charAt(0)}</Text>
           </View>
           <View>
@@ -350,6 +259,12 @@ function CartaoMinhaReserva({ reserva, hoje, onCancelar }: CartaoMinhaReservaPro
       {reserva.observacao ? (
         <Text style={styles.cartaoReservaObservacao} numberOfLines={2}>
           {reserva.observacao}
+        </Text>
+      ) : null}
+
+      {reserva.motivoRecusa ? (
+        <Text style={styles.cartaoReservaObservacao} numberOfLines={2}>
+          Motivo da recusa: {reserva.motivoRecusa}
         </Text>
       ) : null}
 
@@ -421,7 +336,7 @@ function ModalConfirmacao({ visivel, ambiente, data, horario, onFechar, onConfir
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.resumoReserva}>
-              <View style={[styles.resumoReservaIcone, { backgroundColor: ambiente.cor }]}>
+              <View style={[styles.resumoReservaIcone, { backgroundColor: ambiente.cor ?? COR_PADRAO }]}>
                 <Text style={styles.resumoReservaIconeTexto}>{ambiente.nome.charAt(0)}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -440,7 +355,9 @@ function ModalConfirmacao({ visivel, ambiente, data, horario, onFechar, onConfir
               </Text>
             </View>
 
-            <Text style={styles.resumoReservaRegras}>{ambiente.regras}</Text>
+            <Text style={styles.resumoReservaRegras}>
+              {ambiente.regras ?? 'Sem regras específicas cadastradas.'}
+            </Text>
 
             <Text style={styles.campoLabel}>Observações (opcional)</Text>
             <TextInput
@@ -475,31 +392,105 @@ export default function TelaReservaAmbientes() {
   const hoje = useMemo(() => new Date(), []);
   const diasDisponiveis = useMemo(() => Array.from({ length: 14 }, (_, i) => addDias(hoje, i)), [hoje]);
 
+  const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('reservar');
-  const [ambienteSelecionadoId, setAmbienteSelecionadoId] = useState<string>(AMBIENTES[0].id);
+  const [ambientes, setAmbientes] = useState<Ambiente[]>([]);
+  const [ambienteSelecionadoId, setAmbienteSelecionadoId] = useState<string | null>(null);
   const [dataSelecionada, setDataSelecionada] = useState<Date>(hoje);
   const [horarioSelecionadoId, setHorarioSelecionadoId] = useState<string | null>(null);
-  const [reservas, setReservas] = useState<Reserva[]>(gerarReservasMock);
+  const [reservas, setReservas] = useState<Reserva[]>([]);
+  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]);
   const [modalVisivel, setModalVisivel] = useState(false);
 
-  const ambienteSelecionado = getAmbiente(ambienteSelecionadoId);
   const dataSelecionadaISO = formatarDataISO(dataSelecionada);
 
-  function estaOcupado(horarioId: string): boolean {
-    return reservas.some(
-      (r) =>
-        r.ambienteId === ambienteSelecionadoId &&
-        r.dataISO === dataSelecionadaISO &&
-        r.horarioId === horarioId &&
-        r.status !== 'cancelada'
+  useEffect(() => {
+    carregarAmbientes();
+    carregarMinhasReservas();
+  }, []);
+
+  useEffect(() => {
+    carregarHorariosOcupados();
+  }, [ambienteSelecionadoId, dataSelecionadaISO]);
+
+  async function carregarAmbientes() {
+    const { data, error } = await supabase
+      .from('ambientes')
+      .select('id, nome, capacidade, taxa, regras, cor')
+      .eq('ativo', true)
+      .order('nome');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os ambientes.');
+    } else if (data) {
+      setAmbientes(data);
+      if (data.length > 0) {
+        setAmbienteSelecionadoId((atual) => atual ?? data[0].id);
+      }
+    }
+    setCarregando(false);
+  }
+
+  async function carregarMinhasReservas() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('reservas_ambiente')
+      .select('id, ambiente_id, data, horario, status, observacao, motivo_recusa')
+      .eq('morador_id', user.id)
+      .order('data', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar suas reservas.');
+      return;
+    }
+
+    setReservas(
+      (data ?? []).map((r) => ({
+        id: r.id,
+        ambienteId: r.ambiente_id,
+        dataISO: r.data,
+        horarioId: r.horario,
+        status: r.status as StatusReserva,
+        observacao: r.observacao,
+        motivoRecusa: r.motivo_recusa,
+      }))
     );
   }
 
+  async function carregarHorariosOcupados() {
+    if (!ambienteSelecionadoId) {
+      setHorariosOcupados([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('reservas_ambiente')
+      .select('horario')
+      .eq('ambiente_id', ambienteSelecionadoId)
+      .eq('data', dataSelecionadaISO)
+      .in('status', ['pendente', 'confirmada']);
+
+    if (!error) {
+      setHorariosOcupados((data ?? []).map((r) => r.horario));
+    }
+  }
+
+  function getAmbiente(id: string | null): Ambiente {
+    return ambientes.find((a) => a.id === id) ?? ambientes[0] ?? AMBIENTE_PLACEHOLDER;
+  }
+
+  const ambienteSelecionado = getAmbiente(ambienteSelecionadoId);
+
+  function estaOcupado(horarioId: string): boolean {
+    return horariosOcupados.includes(horarioId);
+  }
+
   const minhasReservas = useMemo(
-    () =>
-      [...reservas]
-        .filter((r) => r.deQuemEh === 'eu')
-        .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
+    () => [...reservas].sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
     [reservas]
   );
 
@@ -522,30 +513,63 @@ export default function TelaReservaAmbientes() {
     setModalVisivel(true);
   }
 
-  function handleConfirmarReserva(observacao: string) {
-    if (!horarioSelecionadoId) return;
+  async function handleConfirmarReserva(observacao: string) {
+    if (!horarioSelecionadoId || !ambienteSelecionadoId) return;
 
-    const novaReserva: Reserva = {
-      id: String(Date.now()),
-      ambienteId: ambienteSelecionadoId,
-      dataISO: dataSelecionadaISO,
-      horarioId: horarioSelecionadoId,
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from('reservas_ambiente').insert({
+      ambiente_id: ambienteSelecionadoId,
+      morador_id: user.id,
+      data: dataSelecionadaISO,
+      horario: horarioSelecionadoId,
+      observacao: observacao || null,
       status: 'pendente',
-      deQuemEh: 'eu',
-      observacao: observacao || undefined,
-    };
+    });
 
-    setReservas((atual) => [novaReserva, ...atual]);
+    if (error) {
+      if (error.code === '23505') {
+        Alert.alert('Horário indisponível', 'Esse horário já foi reservado.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível confirmar a reserva.');
+      }
+      return;
+    }
+
     setModalVisivel(false);
     setHorarioSelecionadoId(null);
     setAbaAtiva('minhas');
+    carregarMinhasReservas();
+    carregarHorariosOcupados();
   }
 
-  function handleCancelarReserva(id: string) {
+  async function handleCancelarReserva(id: string) {
+    const { error } = await supabase.from('reservas_ambiente').update({ status: 'cancelada' }).eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível cancelar a reserva.');
+      return;
+    }
+
     setReservas((atual) => atual.map((r) => (r.id === id ? { ...r, status: 'cancelada' } : r)));
+    carregarHorariosOcupados();
   }
 
   const horarioSelecionadoInfo = horarioSelecionadoId ? getHorario(horarioSelecionadoId) : null;
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.listaVaziaContainer}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.tela}>
@@ -587,7 +611,7 @@ export default function TelaReservaAmbientes() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.listaAmbientes}
             >
-              {AMBIENTES.map((ambiente) => (
+              {ambientes.map((ambiente) => (
                 <CartaoAmbiente
                   key={ambiente.id}
                   ambiente={ambiente}
@@ -599,9 +623,11 @@ export default function TelaReservaAmbientes() {
 
             <View style={styles.regrasBox}>
               <Text style={styles.regrasBoxTitulo}>
-                Capacidade: {ambienteSelecionado.capacidade} pessoas
+                Capacidade: {ambienteSelecionado.capacidade ?? '—'} pessoas
               </Text>
-              <Text style={styles.regrasBoxTexto}>{ambienteSelecionado.regras}</Text>
+              <Text style={styles.regrasBoxTexto}>
+                {ambienteSelecionado.regras ?? 'Sem regras específicas cadastradas.'}
+              </Text>
             </View>
 
             <Text style={styles.secaoTitulo}>Escolha a data</Text>
@@ -656,7 +682,12 @@ export default function TelaReservaAmbientes() {
           data={minhasReservas}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <CartaoMinhaReserva reserva={item} hoje={hoje} onCancelar={handleCancelarReserva} />
+            <CartaoMinhaReserva
+              reserva={item}
+              ambiente={getAmbiente(item.ambienteId)}
+              hoje={hoje}
+              onCancelar={handleCancelarReserva}
+            />
           )}
           contentContainerStyle={
             minhasReservas.length === 0 ? styles.listaVaziaContainer : styles.conteudoScroll

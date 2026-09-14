@@ -1,8 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Input } from '../../components/input';
-import { Senha } from '../../components/senha';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 const Routes = {
   inicio: './inicio',
@@ -14,22 +13,45 @@ const Routes = {
 export default function Index() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
 
-  function handleLogin() {
+  async function handleLogin() {
     const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !senha) {
+      setErro('Informe e-mail e senha.');
+      return;
+    }
 
-    if (normalizedEmail === 'sindico@condominio.com' && senha === 'sindico123') {
+    setErro(null);
+    setCarregando(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: senha,
+    });
+
+    if (error || !data.user) {
+      setCarregando(false);
+      setErro('E-mail ou senha incorretos.');
+      return;
+    }
+
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    setCarregando(false);
+
+    if (perfil?.role === 'sindico') {
       router.push(Routes.inicioSindico);
-      return;
-    }
-
-    if (normalizedEmail === 'porteiro@condominio.com' && senha === 'porteiro123') {
+    } else if (perfil?.role === 'porteiro') {
       router.push(Routes.inicioPorteiro);
-      return;
+    } else {
+      router.push(Routes.inicio);
     }
-
-    // Qualquer outro e-mail acessa a tela padrão de início
-    router.push(Routes.inicio);
   }
 
   return (
@@ -46,14 +68,36 @@ export default function Index() {
 
       {/* Formulário */}
       <View style={styles.formSection}>
-        <Input value={email} onChangeText={setEmail} />
-        <Senha value={senha} onChangeText={setSenha} />
+        <TextInput
+          style={styles.input}
+          placeholder="E-mail"
+          placeholderTextColor="#999999"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Senha"
+          placeholderTextColor="#999999"
+          value={senha}
+          onChangeText={setSenha}
+          secureTextEntry
+        />
+
+        {erro && <Text style={styles.erroText}>{erro}</Text>}
 
         <Pressable
           style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
           onPress={handleLogin}
+          disabled={carregando}
         >
-          <Text style={styles.buttonText}>Login</Text>
+          {carregando ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Login</Text>
+          )}
         </Pressable>
       </View>
 
@@ -117,8 +161,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         width: '100%',
     },
+    input: {
+        height: 50,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
+        backgroundColor: '#ffffff',
+        paddingHorizontal: 16,
+        fontSize: 15,
+        color: '#1a1a1a',
+        marginBottom: 14,
+    },
+    erroText: {
+        color: '#c0392b',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 8,
+    },
     button: {
-        marginTop: 28,
+        marginTop: 14,
         height: 50,
         borderRadius: 12,
         backgroundColor: '#e49c15',

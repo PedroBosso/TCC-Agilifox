@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Linking,
   SafeAreaView,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 
 // ---------- Tipos ----------
@@ -51,84 +53,6 @@ const FILTROS: { id: FiltroEspecie; nome: string }[] = [
   { id: 'cachorro', nome: 'Cães' },
   { id: 'gato', nome: 'Gatos' },
   { id: 'outro', nome: 'Outros' },
-];
-
-// ---------- Dados mockados ----------
-// Em produção, essa lista viria agregada de todos os moradores do condomínio.
-
-const MOCK_PETS_CONDOMINIO: PetCondominio[] = [
-  {
-    id: 'p1',
-    nome: 'Mel',
-    especie: 'cachorro',
-    raca: 'SRD (vira-lata)',
-    cor: 'Caramelo',
-    porte: 'medio',
-    caracteristicas: 'Usa coleira azul com plaquinha de identificação. Muito dócil com estranhos.',
-    tutor: 'Carla Mendes',
-    apto: 'Apto 204',
-    telefone: '(19) 99999-1001',
-  },
-  {
-    id: 'p2',
-    nome: 'Thor',
-    especie: 'cachorro',
-    raca: 'Labrador',
-    cor: 'Dourado',
-    porte: 'grande',
-    caracteristicas: 'Coleira vermelha, muito agitado, late bastante com estranhos.',
-    tutor: 'Rafael Souza',
-    apto: 'Apto 512',
-    telefone: '(19) 99999-1002',
-  },
-  {
-    id: 'p3',
-    nome: 'Nina',
-    especie: 'gato',
-    raca: 'Siamês',
-    cor: 'Clara com pontas escuras',
-    porte: 'pequeno',
-    caracteristicas: 'Olhos azuis, pelagem curta. Costuma se esconder quando assustada.',
-    tutor: 'Bruna Lima',
-    apto: 'Apto 108',
-    telefone: '(19) 99999-1003',
-  },
-  {
-    id: 'p4',
-    nome: 'Bidu',
-    especie: 'cachorro',
-    raca: 'Poodle',
-    cor: 'Branco',
-    porte: 'pequeno',
-    caracteristicas: 'Pelagem cacheada, usa laço rosa na cabeça, não é castrado.',
-    tutor: 'João Ferreira',
-    apto: 'Apto 301',
-    telefone: '(19) 99999-1004',
-  },
-  {
-    id: 'p5',
-    nome: 'Preta',
-    especie: 'gato',
-    raca: 'SRD (vira-lata)',
-    cor: 'Preta',
-    porte: 'pequeno',
-    caracteristicas: 'Mancha branca no peito, sem coleira, bastante arisca.',
-    tutor: 'Ana Paula Rocha',
-    apto: 'Apto 604',
-    telefone: '(19) 99999-1005',
-  },
-  {
-    id: 'p6',
-    nome: 'Rex',
-    especie: 'cachorro',
-    raca: 'Pastor Alemão',
-    cor: 'Preto e caramelo',
-    porte: 'grande',
-    caracteristicas: 'Coleira de couro marrom, obediente, atende bem pelo nome.',
-    tutor: 'Marcos Silva',
-    apto: 'Apto 402',
-    telefone: '(19) 99999-1006',
-  },
 ];
 
 // ---------- Helpers ----------
@@ -209,9 +133,52 @@ function EstadoVazio() {
 // ---------- Tela principal ----------
 
 export default function TelaPetsPorteiro() {
-  const [pets] = useState<PetCondominio[]>(MOCK_PETS_CONDOMINIO);
+  const [pets, setPets] = useState<PetCondominio[]>([]);
   const [busca, setBusca] = useState('');
   const [filtroEspecie, setFiltroEspecie] = useState<FiltroEspecie>('todos');
+
+  useEffect(() => {
+    carregarPets();
+  }, []);
+
+  async function carregarPets() {
+    const { data: petsData, error } = await supabase
+      .from('pets')
+      .select('id, morador_id, nome, especie, raca, cor, porte, caracteristicas');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os pets do condomínio.');
+      return;
+    }
+
+    const linhas = petsData ?? [];
+    if (linhas.length === 0) {
+      setPets([]);
+      return;
+    }
+
+    const moradorIds = [...new Set(linhas.map((p) => p.morador_id))];
+    const { data: perfis } = await supabase.from('profiles').select('id, nome, apto, telefone').in('id', moradorIds);
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+
+    setPets(
+      linhas.map((p) => {
+        const perfil = perfilPorId.get(p.morador_id);
+        return {
+          id: p.id,
+          nome: p.nome,
+          especie: p.especie,
+          raca: p.raca ?? '',
+          cor: p.cor,
+          porte: p.porte,
+          caracteristicas: p.caracteristicas ?? '',
+          tutor: perfil?.nome ?? 'Morador não identificado',
+          apto: perfil?.apto ?? '-',
+          telefone: perfil?.telefone ?? '',
+        };
+      })
+    );
+  }
 
   const petsFiltrados = useMemo(() => {
     const termo = normalizar(busca.trim());

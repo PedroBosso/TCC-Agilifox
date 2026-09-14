@@ -1,5 +1,4 @@
-// src/components/FormField.tsx
-// 📝 Campo de formulário reutilizável com validação
+// Campo de formulário reutilizável com validação
 
 import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import { colors, spacing, typography } from '../theme';
@@ -64,7 +63,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     backgroundColor: colors.surface,
     color: colors.text,
-    // ✨ Transição suave na borda ao focar
   },
 
   inputError: {

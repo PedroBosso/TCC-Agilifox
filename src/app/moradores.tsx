@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -13,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -57,9 +60,24 @@ function iniciais(nome: string): string {
   return (primeira + ultima).toUpperCase();
 }
 
-function calcularIdade(dataNascimentoISO: string): number {
+// Evita o bug de fuso horário ao interpretar uma data "yyyy-mm-dd" vinda do
+// banco (coluna `date`) — `new Date('yyyy-mm-dd')` é interpretado como UTC e
+// pode exibir o dia anterior em fusos negativos como o do Brasil.
+function parseDataLocal(dataISO: string): Date | null {
+  if (!dataISO) return null;
+  const match = dataISO.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, ano, mes, dia] = match;
+    return new Date(Number(ano), Number(mes) - 1, Number(dia));
+  }
+  const data = new Date(dataISO);
+  return isNaN(data.getTime()) ? null : data;
+}
+
+function calcularIdade(dataNascimentoISO: string): number | null {
+  const nascimento = parseDataLocal(dataNascimentoISO);
+  if (!nascimento) return null;
   const hoje = new Date();
-  const nascimento = new Date(dataNascimentoISO);
   let idade = hoje.getFullYear() - nascimento.getFullYear();
   const aindaNaoFezAniversario =
     hoje.getMonth() < nascimento.getMonth() ||
@@ -68,8 +86,15 @@ function calcularIdade(dataNascimentoISO: string): number {
   return idade;
 }
 
+function idadeTexto(dataNascimentoISO: string): string {
+  const idade = calcularIdade(dataNascimentoISO);
+  return idade === null ? 'Não informado' : `${idade} anos`;
+}
+
 function formatarDataCurta(dataISO: string): string {
-  return new Date(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const data = parseDataLocal(dataISO);
+  if (!data) return 'Não informado';
+  return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function mascararCpf(cpf: string): string {
@@ -124,16 +149,33 @@ function calcularDiferencas(original: Morador, editado: DadosEditaveis): Diferen
   return diferencas;
 }
 
-// ---------- Dados mockados ----------
+// ---------- Mapeamento profiles (Supabase) -> Morador ----------
 
-const MOCK_MORADORES: Morador[] = [
-  { id: 'r1', nome: 'Carla Mendes', dataNascimentoISO: '1987-04-12', cpf: '123.456.789-01', apto: '204', bloco: 'A', telefone: '(19) 99999-1001', email: 'carla.mendes@email.com', status: 'ativo' },
-  { id: 'r2', nome: 'Rafael Souza', dataNascimentoISO: '1993-11-02', cpf: '234.567.890-12', apto: '305', bloco: 'A', telefone: '(19) 99999-1002', email: 'rafael.souza@email.com', status: 'ativo' },
-  { id: 'r3', nome: 'Bruna Lima', dataNascimentoISO: '1979-07-25', cpf: '345.678.901-23', apto: '108', bloco: 'B', telefone: '(19) 99999-1003', email: 'bruna.lima@email.com', status: 'ativo' },
-  { id: 'r4', nome: 'João Ferreira', dataNascimentoISO: '1965-01-30', cpf: '456.789.012-34', apto: '301', bloco: 'B', telefone: '(19) 99999-1004', email: 'joao.ferreira@email.com', status: 'inativo' },
-  { id: 'r5', nome: 'Ana Paula Rocha', dataNascimentoISO: '2001-09-18', cpf: '567.890.123-45', apto: '604', bloco: 'C', telefone: '(19) 99999-1005', email: 'anapaula.rocha@email.com', status: 'ativo' },
-  { id: 'r6', nome: 'Marcos Silva', dataNascimentoISO: '1990-05-08', cpf: '678.901.234-56', apto: '402', bloco: 'C', telefone: '(19) 99999-1006', email: 'marcos.silva@email.com', status: 'ativo' },
-];
+interface PerfilMoradorDb {
+  id: string;
+  nome: string;
+  data_nascimento: string | null;
+  cpf: string | null;
+  apto: string | null;
+  bloco: string | null;
+  telefone: string | null;
+  email: string | null;
+  status: StatusMorador;
+}
+
+function mapPerfilParaMorador(perfil: PerfilMoradorDb): Morador {
+  return {
+    id: perfil.id,
+    nome: perfil.nome,
+    dataNascimentoISO: perfil.data_nascimento ?? '',
+    cpf: perfil.cpf ?? '',
+    apto: perfil.apto ?? '',
+    bloco: perfil.bloco ?? '',
+    telefone: perfil.telefone ?? '',
+    email: perfil.email ?? '',
+    status: perfil.status,
+  };
+}
 
 // ---------- Subcomponentes ----------
 
@@ -180,7 +222,7 @@ function CartaoMorador({ morador, onPress }: CartaoMoradorProps) {
       <View style={styles.cartaoInfo}>
         <Text style={styles.cartaoNome}>{morador.nome}</Text>
         <Text style={styles.cartaoDetalhe}>
-          Apto {morador.apto} - Bloco {morador.bloco} · {calcularIdade(morador.dataNascimentoISO)} anos
+          Apto {morador.apto} - Bloco {morador.bloco} · {idadeTexto(morador.dataNascimentoISO)}
         </Text>
         <Text style={styles.cartaoCpf}>CPF {mascararCpf(morador.cpf)}</Text>
       </View>
@@ -259,7 +301,7 @@ function ModalDetalhe({ morador, onFechar, onEditar, onAlternarStatus, onRemover
               </View>
 
               <View style={styles.detalheBox}>
-                <LinhaInfo label="Idade" valor={`${calcularIdade(morador.dataNascimentoISO)} anos`} />
+                <LinhaInfo label="Idade" valor={idadeTexto(morador.dataNascimentoISO)} />
                 <LinhaInfo label="Data de nascimento" valor={formatarDataCurta(morador.dataNascimentoISO)} />
                 <LinhaInfo label="Apartamento" valor={`${morador.apto} - Bloco ${morador.bloco}`} />
                 <LinhaInfo label="Telefone" valor={morador.telefone} />
@@ -331,8 +373,13 @@ function ModalEditar({ morador, onFechar, onProsseguir }: ModalEditarProps) {
     if (partes.length !== 3) return fallbackISO;
     const [dia, mes, ano] = partes;
     if (!dia || !mes || !ano) return fallbackISO;
-    const data = new Date(Number(ano), Number(mes) - 1, Number(dia));
-    return isNaN(data.getTime()) ? fallbackISO : data.toISOString();
+    const diaNum = Number(dia);
+    const mesNum = Number(mes);
+    const anoNum = Number(ano);
+    const data = new Date(anoNum, mesNum - 1, diaNum);
+    if (isNaN(data.getTime())) return fallbackISO;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${anoNum}-${pad(mesNum)}-${pad(diaNum)}`;
   }
 
   function handleProsseguir() {
@@ -541,8 +588,8 @@ function ModalConfirmarRemocao({ morador, onCancelar, onConfirmar }: ModalConfir
         <View style={styles.dialogoCartao}>
           <Text style={styles.dialogoTitulo}>Remover cadastro</Text>
           <Text style={styles.dialogoTexto}>
-            Essa ação remove permanentemente o cadastro de {morador?.nome}, incluindo histórico de acesso ao
-            aplicativo. Não é possível desfazer.
+            Isso vai desativar o acesso de {morador?.nome} ao aplicativo — ele não conseguirá mais fazer login. Os
+            dados do cadastro são mantidos e o acesso pode ser reativado depois em &quot;Ativar acesso&quot;.
           </Text>
 
           <Text style={styles.campoLabel}>
@@ -578,7 +625,8 @@ function ModalConfirmarRemocao({ morador, onCancelar, onConfirmar }: ModalConfir
 // ---------- Tela principal ----------
 
 export default function TelaMoradoresSindico() {
-  const [moradores, setMoradores] = useState<Morador[]>(MOCK_MORADORES);
+  const [moradores, setMoradores] = useState<Morador[]>([]);
+  const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todos');
 
@@ -587,6 +635,26 @@ export default function TelaMoradoresSindico() {
   const [dadosParaConfirmar, setDadosParaConfirmar] = useState<DadosEditaveis | null>(null);
   const [moradorStatus, setMoradorStatus] = useState<Morador | null>(null);
   const [moradorRemover, setMoradorRemover] = useState<Morador | null>(null);
+
+  useEffect(() => {
+    carregarMoradores();
+  }, []);
+
+  async function carregarMoradores() {
+    setCarregando(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, nome, data_nascimento, cpf, apto, bloco, telefone, email, status')
+      .eq('role', 'morador')
+      .order('nome', { ascending: true });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os moradores.');
+    } else {
+      setMoradores((data ?? []).map(mapPerfilParaMorador));
+    }
+    setCarregando(false);
+  }
 
   const moradoresFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -607,8 +675,26 @@ export default function TelaMoradoresSindico() {
     setDadosParaConfirmar(dados);
   }
 
-  function handleConfirmarEdicao() {
+  async function handleConfirmarEdicao() {
     if (!moradorEditando || !dadosParaConfirmar) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        nome: dadosParaConfirmar.nome,
+        data_nascimento: dadosParaConfirmar.dataNascimentoISO || null,
+        apto: dadosParaConfirmar.apto,
+        bloco: dadosParaConfirmar.bloco,
+        telefone: dadosParaConfirmar.telefone,
+        email: dadosParaConfirmar.email,
+      })
+      .eq('id', moradorEditando.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível salvar as alterações.');
+      return;
+    }
+
     setMoradores((atual) =>
       atual.map((m) => (m.id === moradorEditando.id ? { ...m, ...dadosParaConfirmar } : m))
     );
@@ -621,10 +707,19 @@ export default function TelaMoradoresSindico() {
     setMoradorDetalhe(null);
   }
 
-  function handleConfirmarAlternarStatus() {
+  async function handleConfirmarAlternarStatus() {
     if (!moradorStatus) return;
+    const novoStatus: StatusMorador = moradorStatus.status === 'ativo' ? 'inativo' : 'ativo';
+
+    const { error } = await supabase.from('profiles').update({ status: novoStatus }).eq('id', moradorStatus.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível atualizar o status do morador.');
+      return;
+    }
+
     setMoradores((atual) =>
-      atual.map((m) => (m.id === moradorStatus.id ? { ...m, status: m.status === 'ativo' ? 'inativo' : 'ativo' } : m))
+      atual.map((m) => (m.id === moradorStatus.id ? { ...m, status: novoStatus } : m))
     );
     setMoradorStatus(null);
   }
@@ -634,10 +729,34 @@ export default function TelaMoradoresSindico() {
     setMoradorDetalhe(null);
   }
 
-  function handleConfirmarRemocao() {
+  // "Remover" aqui apenas desativa o acesso: o cliente com chave anônima não
+  // pode excluir a conta de outro usuário em auth.users (exigiria a chave de
+  // serviço, que nunca deve ficar no app).
+  async function handleConfirmarRemocao() {
     if (!moradorRemover) return;
-    setMoradores((atual) => atual.filter((m) => m.id !== moradorRemover.id));
+
+    const { error } = await supabase.from('profiles').update({ status: 'inativo' }).eq('id', moradorRemover.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível desativar o acesso deste morador.');
+      return;
+    }
+
+    setMoradores((atual) =>
+      atual.map((m) => (m.id === moradorRemover.id ? { ...m, status: 'inativo' } : m))
+    );
     setMoradorRemover(null);
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

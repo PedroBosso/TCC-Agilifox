@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     FlatList,
     Modal,
     SafeAreaView,
@@ -10,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -27,8 +29,8 @@ interface Fatura {
   statusBase: StatusBaseFatura;
   dataPagamentoISO?: string;
   formaPagamento?: FormaPagamento;
-  codigoPix: string;
-  linhaDigitavel: string;
+  codigoPix: string | null;
+  linhaDigitavel: string | null;
 }
 
 // ---------- Configuração visual ----------
@@ -41,17 +43,8 @@ const CONFIG_STATUS: Record<StatusExibicaoFatura, { nome: string; cor: string; f
 
 // ---------- Helpers ----------
 
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
-
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarMesAno(data: Date): string {
-  const texto = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function formatarDataCurta(dataISO: string): string {
@@ -80,81 +73,6 @@ function textoPrazo(fatura: Fatura, hoje: Date): string {
   if (dias > 0) return `Vence em ${dias} dia${dias > 1 ? 's' : ''}`;
   const diasAtraso = Math.abs(dias);
   return `Vencida há ${diasAtraso} dia${diasAtraso > 1 ? 's' : ''}`;
-}
-
-// ---------- Dados mockados ----------
-// Gerados a partir de "hoje" para que a tela sempre mostre uma fatura vencida,
-// uma pendente e um histórico coerente, independentemente de quando o app abrir.
-
-function gerarFaturasMock(hoje: Date): Fatura[] {
-  return [
-    {
-      id: 'f1',
-      referencia: formatarMesAno(hoje),
-      descricao: 'Taxa condominial mensal',
-      valor: 620,
-      vencimentoISO: addDias(hoje, 8).toISOString(),
-      statusBase: 'pendente',
-      codigoPix: '00020126580014br.gov.bcb.pix0136c4f1a2e0-jardimdasflores52040000530398654046.205802BR',
-      linhaDigitavel: '34191.79001 01043.510047 91020.150008 6 87770000062000',
-    },
-    {
-      id: 'f2',
-      referencia: formatarMesAno(addDias(hoje, -35)),
-      descricao: 'Taxa condominial mensal',
-      valor: 600,
-      vencimentoISO: addDias(hoje, -5).toISOString(),
-      statusBase: 'pendente',
-      codigoPix: '00020126580014br.gov.bcb.pix0136a9d8b3f1-jardimdasflores52040000530398654046.005802BR',
-      linhaDigitavel: '34191.79001 01043.510047 91020.150008 6 87760000060000',
-    },
-    {
-      id: 'f3',
-      referencia: 'Multa',
-      descricao: 'Multa - Barulho após 22h',
-      valor: 150,
-      vencimentoISO: addDias(hoje, 15).toISOString(),
-      statusBase: 'pendente',
-      codigoPix: '00020126580014br.gov.bcb.pix0136f2c4e5a7-jardimdasflores52040000530398654045802BR',
-      linhaDigitavel: '34191.79001 01043.510047 91020.150008 6 87750000015000',
-    },
-    {
-      id: 'f4',
-      referencia: formatarMesAno(addDias(hoje, -65)),
-      descricao: 'Taxa condominial mensal',
-      valor: 600,
-      vencimentoISO: addDias(hoje, -70).toISOString(),
-      statusBase: 'pago',
-      dataPagamentoISO: addDias(hoje, -71).toISOString(),
-      formaPagamento: 'pix',
-      codigoPix: '',
-      linhaDigitavel: '',
-    },
-    {
-      id: 'f5',
-      referencia: formatarMesAno(addDias(hoje, -95)),
-      descricao: 'Taxa condominial mensal',
-      valor: 600,
-      vencimentoISO: addDias(hoje, -100).toISOString(),
-      statusBase: 'pago',
-      dataPagamentoISO: addDias(hoje, -102).toISOString(),
-      formaPagamento: 'boleto',
-      codigoPix: '',
-      linhaDigitavel: '',
-    },
-    {
-      id: 'f6',
-      referencia: 'Taxa de ambiente',
-      descricao: 'Taxa de uso - Salão de Festas',
-      valor: 150,
-      vencimentoISO: addDias(hoje, -12).toISOString(),
-      statusBase: 'pago',
-      dataPagamentoISO: addDias(hoje, -12).toISOString(),
-      formaPagamento: 'pix',
-      codigoPix: '',
-      linhaDigitavel: '',
-    },
-  ];
 }
 
 // ---------- Subcomponentes ----------
@@ -311,7 +229,7 @@ function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) 
                   <Text style={styles.campoLabel}>PIX Copia e Cola</Text>
                   <View style={styles.codigoBox}>
                     <Text style={styles.codigoTexto} numberOfLines={2}>
-                      {fatura.codigoPix}
+                      {fatura.codigoPix || 'Código não disponível'}
                     </Text>
                   </View>
                   <TouchableOpacity style={styles.botaoSecundario} activeOpacity={0.8}>
@@ -322,7 +240,7 @@ function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) 
                 <View>
                   <Text style={styles.campoLabel}>Linha digitável</Text>
                   <View style={styles.codigoBox}>
-                    <Text style={styles.codigoTexto}>{fatura.linhaDigitavel}</Text>
+                    <Text style={styles.codigoTexto}>{fatura.linhaDigitavel || 'Código não disponível'}</Text>
                   </View>
                   <TouchableOpacity style={styles.botaoSecundario} activeOpacity={0.8}>
                     <Text style={styles.botaoSecundarioTexto}>Copiar código</Text>
@@ -352,9 +270,49 @@ function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) 
 
 export default function TelaPagamentosMorador() {
   const hoje = useMemo(() => new Date(), []);
-  const [faturas, setFaturas] = useState<Fatura[]>(() => gerarFaturasMock(hoje));
+  const [faturas, setFaturas] = useState<Fatura[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('aberto');
   const [faturaSelecionada, setFaturaSelecionada] = useState<Fatura | null>(null);
+
+  useEffect(() => {
+    carregarFaturas();
+  }, []);
+
+  async function carregarFaturas() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('faturas')
+      .select('id, referencia, descricao, valor, vencimento, status, forma_pagamento, data_pagamento, codigo_pix, linha_digitavel')
+      .eq('morador_id', user.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar suas faturas.');
+      return;
+    }
+
+    setFaturas(
+      (data ?? []).map((f) => ({
+        id: f.id,
+        referencia: f.referencia,
+        descricao: f.descricao ?? '',
+        valor: Number(f.valor),
+        vencimentoISO: f.vencimento,
+        statusBase: f.status,
+        dataPagamentoISO: f.data_pagamento ?? undefined,
+        formaPagamento: f.forma_pagamento ?? undefined,
+        codigoPix: f.codigo_pix,
+        linhaDigitavel: f.linha_digitavel,
+      }))
+    );
+  }
 
   const faturasEmAberto = useMemo(
     () =>
@@ -379,15 +337,19 @@ export default function TelaPagamentosMorador() {
   const totalEmAberto = faturasEmAberto.reduce((soma, f) => soma + f.valor, 0);
   const faturaDestaque = faturasEmAberto[0] ?? null;
 
-  function handleConfirmarPagamento(id: string, forma: FormaPagamento) {
-    setFaturas((atual) =>
-      atual.map((f) =>
-        f.id === id
-          ? { ...f, statusBase: 'pago', dataPagamentoISO: new Date().toISOString(), formaPagamento: forma }
-          : f
-      )
-    );
+  async function handleConfirmarPagamento(id: string, forma: FormaPagamento) {
+    const { error } = await supabase
+      .from('faturas')
+      .update({ status: 'pago', data_pagamento: new Date().toISOString(), forma_pagamento: forma })
+      .eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível confirmar o pagamento.');
+      return;
+    }
+
     setFaturaSelecionada(null);
+    carregarFaturas();
   }
 
   return (

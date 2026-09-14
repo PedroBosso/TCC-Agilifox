@@ -1,34 +1,96 @@
-/**
- * ControleAcesso.tsx
- *
- * Tela para o porteiro monitorar entradas e saídas e fazer a liberação
- * manual de moradores ou visitantes, mantendo o padrão visual do app.
- */
+// Tela do porteiro para monitorar entradas/saídas e liberar acessos manualmente.
 
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-// Dados simulados para o TCC
-const dadosIniciais = [
-    { id: '1', nome: 'Carlos Silva', tipo: 'Morador', apto: '101 - Bloco A', status: 'Liberado', hora: '09:15', direcao: 'Entrada' },
-    { id: '2', nome: 'Mariana Souza', tipo: 'Visitante', apto: '205 - Bloco B', status: 'Aguardando', hora: '09:22', direcao: 'Entrada' },
-    { id: '3', nome: 'João (Sedex)', tipo: 'Entregador', apto: '302 - Bloco A', status: 'Aguardando', hora: '09:25', direcao: 'Entrada' },
-    { id: '4', nome: 'Ana Costa', tipo: 'Morador', apto: '404 - Bloco C', status: 'Liberado', hora: '09:10', direcao: 'Saída' },
-];
+type TipoPessoa = 'morador' | 'visitante' | 'entregador';
+type Direcao = 'entrada' | 'saida';
+type StatusAcesso = 'liberado' | 'aguardando';
+
+interface RegistroAcesso {
+    id: string;
+    tipo_pessoa: TipoPessoa;
+    nome: string;
+    apartamento: string | null;
+    direcao: Direcao;
+    status: StatusAcesso;
+    registrado_em: string;
+}
+
+const LABEL_TIPO: Record<TipoPessoa, string> = {
+    morador: 'Morador',
+    visitante: 'Visitante',
+    entregador: 'Entregador',
+};
+
+const LABEL_DIRECAO: Record<Direcao, string> = {
+    entrada: 'Entrada',
+    saida: 'Saída',
+};
+
+function formatarHora(iso: string): string {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function ControleAcesso() {
-    const [registros, setRegistros] = useState(dadosIniciais);
+    const [registros, setRegistros] = useState<RegistroAcesso[]>([]);
+    const [carregando, setCarregando] = useState(true);
 
-    // Função para simular a liberação manual
-    const handleLiberar = (id: string) => {
+    useEffect(() => {
+        carregarRegistros();
+    }, []);
+
+    async function carregarRegistros() {
+        setCarregando(true);
+        const { data, error } = await supabase
+            .from('registros_acesso')
+            .select('id, tipo_pessoa, nome, apartamento, direcao, status, registrado_em')
+            .order('registrado_em', { ascending: false });
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível carregar os registros de acesso.');
+        } else {
+            setRegistros(data ?? []);
+        }
+        setCarregando(false);
+    }
+
+    // Libera manualmente um acesso pendente
+    const handleLiberar = async (id: string) => {
+        const {
+            data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+            Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+            return;
+        }
+
+        const { error } = await supabase
+            .from('registros_acesso')
+            .update({ status: 'liberado', liberado_por: user.id })
+            .eq('id', id);
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível liberar o acesso.');
+            return;
+        }
+
         setRegistros((prev) =>
-            prev.map((item) =>
-                item.id === id ? { ...item, status: 'Liberado' } : item
-            )
+            prev.map((item) => (item.id === id ? { ...item, status: 'liberado' } : item))
         );
-        alert('Acesso liberado com sucesso!');
+        Alert.alert('Sucesso', 'Acesso liberado com sucesso!');
     };
+
+    if (carregando) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color="#e49c15" />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -49,36 +111,41 @@ export default function ControleAcesso() {
                 showsVerticalScrollIndicator={true}
             >
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>Entradas e Saídas 🚪</Text>
+                    <Text style={styles.welcomeText}>Entradas e Saídas</Text>
                     <Text style={styles.welcomeSubtext}>Monitore o fluxo e libere acessos manualmente em caso de problemas.</Text>
                 </View>
 
                 {/* Lista de Registros */}
                 <View style={styles.listContainer}>
+                    {registros.length === 0 && (
+                        <Text style={{ color: '#999999', textAlign: 'center', marginTop: 12 }}>
+                            Nenhum registro de acesso ainda.
+                        </Text>
+                    )}
                     {registros.map((item) => (
                         <View key={item.id} style={styles.card}>
                             <View style={styles.cardInfo}>
                                 <View style={styles.iconWrapper}>
                                     {/* Reaproveitando o ícone de pessoas */}
-                                    <Image 
-                                        source={require('../../assets/images/pessoas.png')} 
-                                        style={styles.imageIcon} 
+                                    <Image
+                                        source={require('../../assets/images/pessoas.png')}
+                                        style={styles.imageIcon}
                                     />
                                 </View>
                                 <View style={styles.textContent}>
                                     <Text style={styles.nomeText}>{item.nome}</Text>
                                     <Text style={styles.detalheText}>
-                                        {item.tipo} • Apto {item.apto}
+                                        {LABEL_TIPO[item.tipo_pessoa]}{item.apartamento ? ` • Apto ${item.apartamento}` : ''}
                                     </Text>
                                     <Text style={styles.horaText}>
-                                        {item.direcao} às {item.hora}
+                                        {LABEL_DIRECAO[item.direcao]} às {formatarHora(item.registrado_em)}
                                     </Text>
                                 </View>
                             </View>
 
                             {/* Área de Status e Ação */}
                             <View style={styles.actionContainer}>
-                                {item.status === 'Aguardando' ? (
+                                {item.status === 'aguardando' ? (
                                     <Pressable 
                                         style={({ pressed }) => [
                                             styles.btnLiberar,

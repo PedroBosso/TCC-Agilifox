@@ -1,20 +1,25 @@
-import React, { useMemo, useState } from 'react';
-import {
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+// Mural de Achados e Perdidos — dados vêm do Supabase (tabela achados_perdidos), visível a todos os moradores autenticados.
 
-// ---------- Tipos ----------
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { supabase } from '../lib/supabase';
+
+// Tipos 
 
 type TipoItem = 'perdido' | 'achado';
 type StatusItem = 'ativo' | 'resolvido';
@@ -40,7 +45,7 @@ interface ItemAchadoPerdido {
   meuItem: boolean;
 }
 
-// ---------- Dados fixos ----------
+// Dados fixos 
 
 const CATEGORIAS: CategoriaInfo[] = [
   { id: 'eletronicos', nome: 'Eletrônicos', sigla: 'E', cor: '#3D6FB4' },
@@ -63,20 +68,10 @@ const CONFIG_TIPO: Record<TipoItem, { nome: string; cor: string; fundo: string }
   achado: { nome: 'Achado', cor: '#2F855A', fundo: '#E7F4ED' },
 };
 
-// ---------- Helpers ----------
+// Helpers 
 
 function getCategoria(id: string): CategoriaInfo {
   return CATEGORIAS.find((c) => c.id === id) ?? CATEGORIAS[CATEGORIAS.length - 1];
-}
-
-function addDias(data: Date, dias: number): Date {
-  const nova = new Date(data);
-  nova.setDate(nova.getDate() + dias);
-  return nova;
-}
-
-function formatarDataISO(data: Date): string {
-  return data.toISOString();
 }
 
 function formatarDataRelativa(dataISO: string): string {
@@ -90,86 +85,19 @@ function formatarDataRelativa(dataISO: string): string {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
-// ---------- Dados mockados ----------
-// Gerados a partir de "hoje" para que a tela sempre mostre exemplos relevantes,
-// independentemente da data em que o app for aberto.
-
-function gerarItensMock(): ItemAchadoPerdido[] {
-  const hoje = new Date();
-  return [
-    {
-      id: '1',
-      titulo: 'Chaveiro com 3 chaves',
-      descricao: 'Encontrado próximo à portaria, chaveiro azul com pingente de bola de futebol.',
-      tipo: 'achado',
-      categoriaId: 'chaves',
-      local: 'Portaria principal',
-      dataISO: formatarDataISO(addDias(hoje, -1)),
-      status: 'ativo',
-      contato: 'Portaria - (19) 99999-0001',
-      meuItem: false,
-    },
-    {
-      id: '2',
-      titulo: 'Perdi meu gato - Mingau',
-      descricao: 'Gato laranja, castrado, muito dócil. Sumiu do apartamento há dois dias.',
-      tipo: 'perdido',
-      categoriaId: 'animais',
-      local: 'Bloco C',
-      dataISO: formatarDataISO(addDias(hoje, -2)),
-      status: 'ativo',
-      contato: 'Apto 604 - (19) 99999-0002',
-      meuItem: true,
-    },
-    {
-      id: '3',
-      titulo: 'Fone de ouvido bluetooth',
-      descricao: 'Fone branco encontrado na academia, dentro do estojo de silicone.',
-      tipo: 'achado',
-      categoriaId: 'eletronicos',
-      local: 'Academia',
-      dataISO: formatarDataISO(addDias(hoje, -3)),
-      status: 'ativo',
-      contato: 'Zeladoria - (19) 99999-0003',
-      meuItem: false,
-    },
-    {
-      id: '4',
-      titulo: 'Carteira com documentos',
-      descricao: 'RG e CPF encontrados no elevador do bloco A, dentro de uma carteira preta.',
-      tipo: 'achado',
-      categoriaId: 'documentos',
-      local: 'Elevador - Bloco A',
-      dataISO: formatarDataISO(addDias(hoje, -4)),
-      status: 'resolvido',
-      contato: 'Portaria - (19) 99999-0001',
-      meuItem: false,
-    },
-    {
-      id: '5',
-      titulo: 'Perdi um casaco jeans',
-      descricao: 'Esqueci no salão de festas depois do aniversário do fim de semana.',
-      tipo: 'perdido',
-      categoriaId: 'roupas_acessorios',
-      local: 'Salão de festas',
-      dataISO: formatarDataISO(addDias(hoje, -5)),
-      status: 'ativo',
-      contato: 'Apto 302 - (19) 99999-0004',
-      meuItem: true,
-    },
-    {
-      id: '6',
-      titulo: 'Óculos de sol encontrado',
-      descricao: 'Óculos escuros modelo aviador, achado na área da piscina.',
-      tipo: 'achado',
-      categoriaId: 'outros',
-      local: 'Piscina',
-      dataISO: formatarDataISO(addDias(hoje, -6)),
-      status: 'resolvido',
-      contato: 'Portaria - (19) 99999-0001',
-      meuItem: false,
-    },
-  ];
+function itemDoBanco(row: any, userId: string | null): ItemAchadoPerdido {
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    descricao: row.descricao,
+    tipo: row.tipo,
+    categoriaId: row.categoria,
+    local: row.local ?? 'Não informado',
+    dataISO: row.criado_em,
+    status: row.status,
+    contato: row.contato,
+    meuItem: row.autor_id === userId,
+  };
 }
 
 function ordenarItens(itens: ItemAchadoPerdido[]): ItemAchadoPerdido[] {
@@ -179,7 +107,7 @@ function ordenarItens(itens: ItemAchadoPerdido[]): ItemAchadoPerdido[] {
   });
 }
 
-// ---------- Subcomponentes ----------
+// Subcomponentes 
 
 function SeloTipo({ tipo }: { tipo: TipoItem }) {
   const config = CONFIG_TIPO[tipo];
@@ -268,7 +196,7 @@ function EstadoVazio() {
   );
 }
 
-// ---------- Modal de novo item ----------
+// Modal de novo item 
 
 interface NovoItemPayload {
   titulo: string;
@@ -434,12 +362,41 @@ function ModalNovoItem({ visivel, onFechar, onEnviar }: ModalNovoItemProps) {
   );
 }
 
-// ---------- Tela principal ----------
+// Tela principal 
 
 export default function TelaAchadosPerdidos() {
-  const [itens, setItens] = useState<ItemAchadoPerdido[]>(gerarItensMock);
+  const [itens, setItens] = useState<ItemAchadoPerdido[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [filtroAtivo, setFiltroAtivo] = useState<FiltroId>('todos');
   const [modalVisivel, setModalVisivel] = useState(false);
+
+  useEffect(() => {
+    carregarItens();
+  }, []);
+
+  async function carregarItens() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setUserId(user?.id ?? null);
+
+    const { data, error } = await supabase
+      .from('achados_perdidos')
+      .select('*')
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os itens.');
+      setCarregando(false);
+      return;
+    }
+
+    setItens((data ?? []).map((row) => itemDoBanco(row, user?.id ?? null)));
+    setCarregando(false);
+  }
 
   const itensFiltrados = useMemo(() => {
     let lista = itens;
@@ -452,19 +409,55 @@ export default function TelaAchadosPerdidos() {
 
   const totalAtivos = itens.filter((i) => i.status === 'ativo').length;
 
-  function handleNovoItem(payload: NovoItemPayload) {
-    const novoItem: ItemAchadoPerdido = {
-      ...payload,
-      id: String(Date.now()),
-      status: 'ativo',
-      dataISO: new Date().toISOString(),
-      meuItem: true,
-    };
-    setItens((atual) => [novoItem, ...atual]);
+  async function handleNovoItem(payload: NovoItemPayload) {
+    if (!userId) {
+      Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('achados_perdidos')
+      .insert({
+        autor_id: userId,
+        tipo: payload.tipo,
+        categoria: payload.categoriaId,
+        titulo: payload.titulo,
+        local: payload.local,
+        descricao: payload.descricao,
+        contato: payload.contato,
+        status: 'ativo',
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Erro', 'Não foi possível publicar o item.');
+      return;
+    }
+
+    setItens((atual) => [itemDoBanco(data, userId), ...atual]);
   }
 
-  function handleMarcarResolvido(id: string) {
+  async function handleMarcarResolvido(id: string) {
+    const { error } = await supabase
+      .from('achados_perdidos')
+      .update({ status: 'resolvido' })
+      .eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível marcar como resolvido.');
+      return;
+    }
+
     setItens((atual) => atual.map((item) => (item.id === id ? { ...item, status: 'resolvido' } : item)));
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={[styles.tela, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -527,7 +520,7 @@ export default function TelaAchadosPerdidos() {
   );
 }
 
-// ---------- Estilos ----------
+// Estilos 
 
 const styles = StyleSheet.create({
   tela: {

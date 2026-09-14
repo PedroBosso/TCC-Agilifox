@@ -1,6 +1,4 @@
-// src/theme/typography.ts
-// 🔤 Escala tipográfica padronizada
-// Substitui tamanhos aleatórios por sistema consistente
+// Escala tipográfica padronizada
 
 export const typography = {
   // ── Headings ──

@@ -1,25 +1,8 @@
-/**
- * TelaAlertasPanicoPortaria.tsx
- *
- * Tela de Alertas de Pânico para a portaria. Mostra em destaque qualquer
- * alerta ativo (morador que acionou o botão de pânico em
- * TelaBotaoPanico.tsx), com acesso rápido para ligar para a polícia ou
- * marcar o alerta como atendido — a decisão de acionar ou não a polícia é
- * sempre do porteiro, o app só agiliza o contato.
- *
- * Front-end apenas — os dados abaixo são mockados (gerarAlertasMock).
- *
- * Para integrar com back-end depois, basta substituir:
- *   1. O estado inicial de `alertas` por uma chamada à API — idealmente com
- *      push notification/som/vibração quando um novo alerta ativo chegar,
- *      já que isso é uma emergência e não pode depender do porteiro abrir o app
- *   2. `handleConfirmarAtendimento` por um PATCH no endpoint correspondente
- *
- * Dependências: apenas React e React Native "puro" — nenhuma lib extra necessária.
- */
+// Alertas de Pânico para a portaria — destaque para alertas ativos (de panico.tsx) com ação de atender ou ligar para a polícia.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Animated,
     FlatList,
     Linking,
@@ -32,6 +15,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -39,13 +23,15 @@ type StatusAlerta = 'ativo' | 'atendido' | 'cancelado';
 
 interface AlertaPanico {
   id: string;
+  morador_id: string;
+  status: StatusAlerta;
+  detalhes_morador: string | null;
+  visualizado_portaria_em: string | null;
+  atendido_em: string | null;
+  observacao_atendimento: string | null;
+  criado_em: string;
   morador: string;
   apto: string;
-  dataISO: string;
-  status: StatusAlerta;
-  atendidoISO?: string;
-  observacaoAtendimento?: string;
-  detalhesMorador?: string;
 }
 
 // ---------- Configuração ----------
@@ -59,14 +45,6 @@ const CONFIG_STATUS: Record<StatusAlerta, { nome: string; cor: string; fundo: st
 };
 
 // ---------- Helpers ----------
-
-function addMinutos(data: Date, minutos: number): Date {
-  return new Date(data.getTime() + minutos * 60000);
-}
-
-function addDias(data: Date, dias: number): Date {
-  return addMinutos(data, dias * 24 * 60);
-}
 
 function formatarTempoDecorrido(dataISO: string, agora: Date): string {
   const diffMin = Math.floor((agora.getTime() - new Date(dataISO).getTime()) / 60000);
@@ -87,38 +65,6 @@ function ligarParaPolicia() {
   Linking.openURL(`tel:${NUMERO_POLICIA}`).catch(() => {
     // Em produção, mostrar aviso caso o dispositivo não suporte chamadas.
   });
-}
-
-// ---------- Dados mockados ----------
-// Um alerta ativo já vem no mock para demonstrar a tela em seu estado mais
-// importante — o de emergência real acontecendo agora.
-
-function gerarAlertasMock(agora: Date): AlertaPanico[] {
-  return [
-    {
-      id: 'p1',
-      morador: 'Ana Paula Rocha',
-      apto: 'Apto 604',
-      dataISO: addMinutos(agora, -2).toISOString(),
-      status: 'ativo',
-    },
-    {
-      id: 'p2',
-      morador: 'Marcos Silva',
-      apto: 'Apto 402',
-      dataISO: addDias(agora, -2).toISOString(),
-      status: 'atendido',
-      atendidoISO: addMinutos(addDias(agora, -2), 4).toISOString(),
-      observacaoAtendimento: 'Confirmado por telefone com o morador — falso alarme, criança mexeu no aplicativo.',
-    },
-    {
-      id: 'p3',
-      morador: 'Carla Mendes',
-      apto: 'Apto 204',
-      dataISO: addDias(agora, -5).toISOString(),
-      status: 'cancelado',
-    },
-  ];
 }
 
 // ---------- Subcomponentes ----------
@@ -166,10 +112,10 @@ function CartaoAlertaAtivo({ alerta, agora, onAtender }: CartaoAlertaAtivoProps)
 
       <Text style={styles.cartaoAtivoMorador}>{alerta.morador}</Text>
       <Text style={styles.cartaoAtivoApto}>
-        {alerta.apto} · acionado {formatarTempoDecorrido(alerta.dataISO, agora)}
+        {alerta.apto} · acionado {formatarTempoDecorrido(alerta.criado_em, agora)}
       </Text>
 
-      {alerta.detalhesMorador && <Text style={styles.cartaoAtivoDetalhes}>{alerta.detalhesMorador}</Text>}
+      {alerta.detalhes_morador && <Text style={styles.cartaoAtivoDetalhes}>{alerta.detalhes_morador}</Text>}
 
       <View style={styles.cartaoAtivoAcoes}>
         <TouchableOpacity style={styles.botaoPolicia} onPress={ligarParaPolicia} activeOpacity={0.85}>
@@ -190,13 +136,13 @@ function CartaoHistorico({ alerta }: { alerta: AlertaPanico }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.cartaoHistoricoMorador}>{alerta.morador}</Text>
           <Text style={styles.cartaoHistoricoApto}>
-            {alerta.apto} · {formatarDataHoraExtensa(alerta.dataISO)}
+            {alerta.apto} · {formatarDataHoraExtensa(alerta.criado_em)}
           </Text>
         </View>
         <Selo status={alerta.status} />
       </View>
-      {alerta.observacaoAtendimento && (
-        <Text style={styles.cartaoHistoricoObservacao}>{alerta.observacaoAtendimento}</Text>
+      {alerta.observacao_atendimento && (
+        <Text style={styles.cartaoHistoricoObservacao}>{alerta.observacao_atendimento}</Text>
       )}
     </View>
   );
@@ -269,41 +215,94 @@ function ModalAtender({ alerta, onFechar, onConfirmar }: ModalAtenderProps) {
 // ---------- Tela principal ----------
 
 export default function TelaAlertasPanicoPortaria() {
-  const referencia = useMemo(() => new Date(), []);
-  const [alertas, setAlertas] = useState<AlertaPanico[]>(() => gerarAlertasMock(referencia));
+  const [alertas, setAlertas] = useState<AlertaPanico[]>([]);
   const [agora, setAgora] = useState(new Date());
   const [alertaParaAtender, setAlertaParaAtender] = useState<AlertaPanico | null>(null);
 
   useEffect(() => {
-    const intervalo = setInterval(() => setAgora(new Date()), 30000);
+    carregarAlertas();
+  }, []);
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      setAgora(new Date());
+      carregarAlertas();
+    }, 30000);
     return () => clearInterval(intervalo);
   }, []);
 
-  const alertasAtivos = useMemo(
-    () =>
-      alertas
-        .filter((a) => a.status === 'ativo')
-        .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
-    [alertas]
-  );
+  async function carregarAlertas() {
+    const { data: alertasData, error } = await supabase
+      .from('alertas_panico')
+      .select('id, morador_id, status, detalhes_morador, visualizado_portaria_em, atendido_em, observacao_atendimento, criado_em')
+      .order('criado_em', { ascending: false });
 
-  const historico = useMemo(
-    () =>
-      alertas
-        .filter((a) => a.status !== 'ativo')
-        .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime()),
-    [alertas]
-  );
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os alertas.');
+      return;
+    }
 
-  function handleConfirmarAtendimento(id: string, observacao: string) {
-    setAlertas((atual) =>
-      atual.map((a) =>
-        a.id === id
-          ? { ...a, status: 'atendido', atendidoISO: new Date().toISOString(), observacaoAtendimento: observacao || undefined }
-          : a
-      )
-    );
+    const lista = alertasData ?? [];
+    const moradorIds = [...new Set(lista.map((a) => a.morador_id))];
+
+    const perfisPorId = new Map<string, { nome: string; apto: string | null }>();
+    if (moradorIds.length > 0) {
+      const { data: perfisData } = await supabase
+        .from('profiles')
+        .select('id, nome, apto')
+        .in('id', moradorIds);
+      (perfisData ?? []).forEach((p) => perfisPorId.set(p.id, { nome: p.nome, apto: p.apto }));
+    }
+
+    const alertasComPerfil: AlertaPanico[] = lista.map((a) => ({
+      ...a,
+      morador: perfisPorId.get(a.morador_id)?.nome ?? 'Morador',
+      apto: perfisPorId.get(a.morador_id)?.apto ?? '—',
+    }));
+
+    // Ao exibir um alerta ativo pela primeira vez na portaria, marca o momento da visualização.
+    const paraMarcar = alertasComPerfil.filter((a) => a.status === 'ativo' && !a.visualizado_portaria_em);
+    if (paraMarcar.length > 0) {
+      const agoraISO = new Date().toISOString();
+      await Promise.all(
+        paraMarcar.map((a) =>
+          supabase.from('alertas_panico').update({ visualizado_portaria_em: agoraISO }).eq('id', a.id)
+        )
+      );
+      paraMarcar.forEach((a) => {
+        a.visualizado_portaria_em = agoraISO;
+      });
+    }
+
+    setAlertas(alertasComPerfil);
+  }
+
+  const alertasAtivos = useMemo(() => alertas.filter((a) => a.status === 'ativo'), [alertas]);
+  const historico = useMemo(() => alertas.filter((a) => a.status !== 'ativo'), [alertas]);
+
+  async function handleConfirmarAtendimento(id: string, observacao: string) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('alertas_panico')
+      .update({
+        status: 'atendido',
+        atendido_em: new Date().toISOString(),
+        atendido_por: user.id,
+        observacao_atendimento: observacao || null,
+      })
+      .eq('id', id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível marcar o alerta como atendido.');
+      return;
+    }
+
     setAlertaParaAtender(null);
+    carregarAlertas();
   }
 
   return (

@@ -1,11 +1,10 @@
-// src/components/EmptyState.tsx
-// 📭 Componente reutilizável para estados vazios
+// Componente reutilizável para estados vazios
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing, typography } from '../theme';
 
 interface EmptyStateProps {
-  icon?: string; // emoji
+  icon?: string;
   title: string;
   description?: string;
   buttonLabel?: string;
@@ -13,7 +12,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  icon = '📭',
+  icon = '',
   title,
   description,
   buttonLabel,
@@ -85,19 +84,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// ── Exemplo de uso ──
-/*
-import { EmptyState } from '@/components/EmptyState';
-
-{visitantes.length === 0 ? (
-  <EmptyState
-    icon="👥"
-    title="Nenhum visitante cadastrado"
-    description="Comece adicionando o primeiro visitante"
-    buttonLabel="+ Cadastrar agora"
-    onButtonPress={() => router.push('/cadastro')}
-  />
-) : (
-  <FlatList {...} />
-)}
-*/
+// Exemplo de uso:
+// <EmptyState title="Nenhum visitante cadastrado" buttonLabel="Cadastrar agora" onButtonPress={...} />

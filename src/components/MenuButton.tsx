@@ -1,6 +1,4 @@
-// src/components/MenuButton.tsx
-// 🔘 Botão de menu reutilizável com suporte a variações
-// Substitui os 10 estilos de botão (button, button1, button2...) em inicio.tsx
+// Botão de menu reutilizável com suporte a variações
 
 import {
     Image,
@@ -49,7 +47,7 @@ export function MenuButton({
           width: currentSize.width,
           height: currentSize.height,
         },
-        pressed && styles.pressed, // ✨ Feedback visual
+        pressed && styles.pressed,
         style,
       ]}
       testID={testID}
@@ -79,7 +77,6 @@ const styles = StyleSheet.create({
     margin: spacing.md,
     borderRadius: 12,
     padding: spacing.md,
-    // ✨ Efeito de sombra para profundidade
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -102,8 +99,8 @@ const styles = StyleSheet.create({
 
   // ── Estado Pressionado ──
   pressed: {
-    opacity: 0.7,           // ✨ Fade
-    transform: [{ scale: 0.95 }], // ✨ Compressão
+    opacity: 0.7,
+    transform: [{ scale: 0.95 }],
   },
 
   // ── Ícone ──
@@ -124,23 +121,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// ── Exemplo de uso ──
-/*
-import { MenuButton } from '@/components/MenuButton';
-
-<MenuButton
-  icon={require('@/assets/images/megafone.png')}
-  label="Comunicados"
-  onPress={() => router.push('/comunicados')}
-  size="medium"
-  variant="primary"
-/>
-
-<MenuButton
-  icon={require('@/assets/images/people.png')}
-  label="Visitantes"
-  onPress={() => router.push('/visitantes')}
-  size="large"
-  variant="secondary"
-/>
-*/
+// Exemplo de uso:
+// <MenuButton icon={require('@/assets/images/megafone.png')} label="Comunicados" onPress={...} />

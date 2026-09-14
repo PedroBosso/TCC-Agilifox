@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -13,6 +14,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -25,6 +27,7 @@ interface CategoriaInfo {
   nome: string;
   cor: string;
   tipo: TipoLancamento;
+  orcamentoMensal: number | null;
 }
 
 interface Lancamento {
@@ -36,55 +39,18 @@ interface Lancamento {
   dataISO: string;
 }
 
+// Observação: o banco não tem uma coluna de "notificado" para inadimplência
+// (essa marcação era só um mock local) — por isso ela não existe mais aqui.
 interface Inadimplente {
-  id: string;
+  moradorId: string;
   morador: string;
   apto: string;
   valorDevido: number;
-  mesesEmAtraso: number;
-  ultimoPagamentoISO?: string;
-  notificado: boolean;
+  faturasEmAtraso: number;
+  vencimentoMaisAntigoISO: string;
 }
-
-// ---------- Categorias ----------
-
-const DESPESA_CATEGORIAS: Omit<CategoriaInfo, 'tipo'>[] = [
-  { id: 'manutencao', nome: 'Manutenção', cor: '#3D6FB4' },
-  { id: 'agua', nome: 'Água', cor: '#2C7873' },
-  { id: 'energia', nome: 'Energia', cor: '#B7791F' },
-  { id: 'salarios', nome: 'Salários e Encargos', cor: '#7E57A6' },
-  { id: 'seguranca', nome: 'Segurança', cor: '#C0392B' },
-  { id: 'limpeza', nome: 'Limpeza', cor: '#2F855A' },
-  { id: 'administrativo', nome: 'Administrativo', cor: '#8A8377' },
-];
-
-const RECEITA_CATEGORIAS: Omit<CategoriaInfo, 'tipo'>[] = [
-  { id: 'taxa_condominial', nome: 'Taxa Condominial', cor: '#2F855A' },
-  { id: 'aluguel_espacos', nome: 'Aluguel de Espaços', cor: '#3D6FB4' },
-  { id: 'multas', nome: 'Multas', cor: '#B7791F' },
-  { id: 'outras_receitas', nome: 'Outras Receitas', cor: '#8A8377' },
-];
-
-const TODAS_CATEGORIAS: CategoriaInfo[] = [
-  ...DESPESA_CATEGORIAS.map((c) => ({ ...c, tipo: 'despesa' as TipoLancamento })),
-  ...RECEITA_CATEGORIAS.map((c) => ({ ...c, tipo: 'receita' as TipoLancamento })),
-];
-
-const ORCAMENTO_DESPESAS: Record<string, number> = {
-  manutencao: 4000,
-  agua: 2500,
-  energia: 2200,
-  salarios: 14000,
-  seguranca: 9000,
-  limpeza: 4200,
-  administrativo: 800,
-};
 
 // ---------- Helpers ----------
-
-function getCategoria(id: string): CategoriaInfo {
-  return TODAS_CATEGORIAS.find((c) => c.id === id) ?? TODAS_CATEGORIAS[0];
-}
 
 function addDias(data: Date, dias: number): Date {
   return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
@@ -127,72 +93,6 @@ function mesmoDia(a: Date, b: Date): boolean {
 
 function formatarDiaSemanaAbrev(data: Date): string {
   return data.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-}
-
-// ---------- Dados mockados ----------
-// Cobrem o mês atual e os dois meses anteriores, gerados a partir de "hoje"
-// para que a navegação entre meses sempre mostre dados coerentes.
-
-function gerarDadosMock(hoje: Date): { lancamentos: Lancamento[]; inadimplentes: Inadimplente[] } {
-  const lancamentos: Lancamento[] = [
-    // Mês atual
-    { id: 'l1', tipo: 'receita', categoriaId: 'taxa_condominial', descricao: 'Taxas condominiais - unidades', valor: 42000, dataISO: addDias(hoje, -5).toISOString() },
-    { id: 'l2', tipo: 'receita', categoriaId: 'aluguel_espacos', descricao: 'Aluguel do salão de festas', valor: 800, dataISO: addDias(hoje, -3).toISOString() },
-    { id: 'l3', tipo: 'receita', categoriaId: 'multas', descricao: 'Multa - unidade 302', valor: 150, dataISO: addDias(hoje, -8).toISOString() },
-    { id: 'l4', tipo: 'despesa', categoriaId: 'manutencao', descricao: 'Manutenção do elevador', valor: 3200, dataISO: addDias(hoje, -6).toISOString() },
-    { id: 'l5', tipo: 'despesa', categoriaId: 'agua', descricao: 'Conta de água', valor: 2450, dataISO: addDias(hoje, -10).toISOString() },
-    { id: 'l6', tipo: 'despesa', categoriaId: 'energia', descricao: 'Conta de energia - áreas comuns', valor: 1870, dataISO: addDias(hoje, -10).toISOString() },
-    { id: 'l7', tipo: 'despesa', categoriaId: 'salarios', descricao: 'Folha de pagamento - equipe', valor: 13500, dataISO: addDias(hoje, -2).toISOString() },
-    { id: 'l8', tipo: 'despesa', categoriaId: 'seguranca', descricao: 'Monitoramento e portaria', valor: 8900, dataISO: addDias(hoje, -4).toISOString() },
-    { id: 'l9', tipo: 'despesa', categoriaId: 'limpeza', descricao: 'Serviço de limpeza terceirizado', valor: 4100, dataISO: addDias(hoje, -7).toISOString() },
-    { id: 'l10', tipo: 'despesa', categoriaId: 'administrativo', descricao: 'Material de escritório e cartório', valor: 340, dataISO: addDias(hoje, -1).toISOString() },
-    // Mês anterior
-    { id: 'l11', tipo: 'receita', categoriaId: 'taxa_condominial', descricao: 'Taxas condominiais - unidades', valor: 41500, dataISO: addDias(hoje, -35).toISOString() },
-    { id: 'l12', tipo: 'receita', categoriaId: 'aluguel_espacos', descricao: 'Aluguel do salão de festas', valor: 800, dataISO: addDias(hoje, -31).toISOString() },
-    { id: 'l13', tipo: 'despesa', categoriaId: 'manutencao', descricao: 'Pintura da fachada (parcela 2/3)', valor: 9800, dataISO: addDias(hoje, -32).toISOString() },
-    { id: 'l14', tipo: 'despesa', categoriaId: 'salarios', descricao: 'Folha de pagamento - equipe', valor: 13200, dataISO: addDias(hoje, -33).toISOString() },
-    { id: 'l15', tipo: 'despesa', categoriaId: 'agua', descricao: 'Conta de água', valor: 2210, dataISO: addDias(hoje, -40).toISOString() },
-    { id: 'l16', tipo: 'despesa', categoriaId: 'energia', descricao: 'Conta de energia - áreas comuns', valor: 1790, dataISO: addDias(hoje, -40).toISOString() },
-    { id: 'l17', tipo: 'despesa', categoriaId: 'seguranca', descricao: 'Monitoramento e portaria', valor: 8900, dataISO: addDias(hoje, -34).toISOString() },
-    { id: 'l18', tipo: 'despesa', categoriaId: 'limpeza', descricao: 'Serviço de limpeza terceirizado', valor: 4050, dataISO: addDias(hoje, -37).toISOString() },
-    // Dois meses atrás
-    { id: 'l19', tipo: 'receita', categoriaId: 'taxa_condominial', descricao: 'Taxas condominiais - unidades', valor: 41500, dataISO: addDias(hoje, -65).toISOString() },
-    { id: 'l20', tipo: 'despesa', categoriaId: 'manutencao', descricao: 'Pintura da fachada (parcela 1/3)', valor: 9800, dataISO: addDias(hoje, -63).toISOString() },
-    { id: 'l21', tipo: 'despesa', categoriaId: 'salarios', descricao: 'Folha de pagamento - equipe', valor: 13200, dataISO: addDias(hoje, -64).toISOString() },
-    { id: 'l22', tipo: 'despesa', categoriaId: 'seguranca', descricao: 'Monitoramento e portaria', valor: 8900, dataISO: addDias(hoje, -65).toISOString() },
-  ];
-
-  const inadimplentes: Inadimplente[] = [
-    {
-      id: 'i1',
-      morador: 'João Ferreira',
-      apto: 'Apto 301',
-      valorDevido: 1240,
-      mesesEmAtraso: 2,
-      ultimoPagamentoISO: addDias(hoje, -70).toISOString(),
-      notificado: false,
-    },
-    {
-      id: 'i2',
-      morador: 'Pedro Alves',
-      apto: 'Apto 512',
-      valorDevido: 620,
-      mesesEmAtraso: 1,
-      ultimoPagamentoISO: addDias(hoje, -40).toISOString(),
-      notificado: true,
-    },
-    {
-      id: 'i3',
-      morador: 'Marcos Silva',
-      apto: 'Apto 402',
-      valorDevido: 1860,
-      mesesEmAtraso: 3,
-      ultimoPagamentoISO: addDias(hoje, -95).toISOString(),
-      notificado: false,
-    },
-  ];
-
-  return { lancamentos, inadimplentes };
 }
 
 // ---------- Subcomponentes ----------
@@ -274,12 +174,12 @@ function BarraOrcamento({ categoria, realizado, orcado }: BarraOrcamentoProps) {
 
 interface CartaoLancamentoProps {
   lancamento: Lancamento;
+  categoria: CategoriaInfo;
   onEditar: () => void;
   onExcluir: () => void;
 }
 
-function CartaoLancamento({ lancamento, onEditar, onExcluir }: CartaoLancamentoProps) {
-  const categoria = getCategoria(lancamento.categoriaId);
+function CartaoLancamento({ lancamento, categoria, onEditar, onExcluir }: CartaoLancamentoProps) {
   const ehReceita = lancamento.tipo === 'receita';
 
   return (
@@ -317,11 +217,10 @@ function CartaoLancamento({ lancamento, onEditar, onExcluir }: CartaoLancamentoP
 
 interface CartaoInadimplenteProps {
   inadimplente: Inadimplente;
-  onAlternarNotificado: () => void;
 }
 
-function CartaoInadimplente({ inadimplente, onAlternarNotificado }: CartaoInadimplenteProps) {
-  const grave = inadimplente.mesesEmAtraso >= 3;
+function CartaoInadimplente({ inadimplente }: CartaoInadimplenteProps) {
+  const grave = inadimplente.faturasEmAtraso >= 3;
 
   return (
     <View style={[styles.cartaoInadimplente, { borderLeftColor: grave ? '#C0392B' : '#B7791F' }]}>
@@ -332,27 +231,15 @@ function CartaoInadimplente({ inadimplente, onAlternarNotificado }: CartaoInadim
         </View>
         <View style={[styles.seloAtraso, { backgroundColor: grave ? '#FBEAE8' : '#FBF1DE' }]}>
           <Text style={[styles.seloAtrasoTexto, { color: grave ? '#C0392B' : '#B7791F' }]}>
-            {inadimplente.mesesEmAtraso} {inadimplente.mesesEmAtraso === 1 ? 'mês' : 'meses'}
+            {inadimplente.faturasEmAtraso} {inadimplente.faturasEmAtraso === 1 ? 'fatura' : 'faturas'}
           </Text>
         </View>
       </View>
 
       <Text style={styles.inadimplenteValor}>{formatarMoeda(inadimplente.valorDevido)} em aberto</Text>
-      {inadimplente.ultimoPagamentoISO && (
-        <Text style={styles.inadimplenteUltimoPagamento}>
-          Último pagamento: {formatarDataCurta(inadimplente.ultimoPagamentoISO)}
-        </Text>
-      )}
-
-      <TouchableOpacity
-        style={[styles.botaoNotificar, inadimplente.notificado && styles.botaoNotificarFeito]}
-        onPress={onAlternarNotificado}
-        activeOpacity={0.85}
-      >
-        <Text style={[styles.botaoNotificarTexto, inadimplente.notificado && styles.botaoNotificarTextoFeito]}>
-          {inadimplente.notificado ? '✓ Notificado' : 'Marcar como notificado'}
-        </Text>
-      </TouchableOpacity>
+      <Text style={styles.inadimplenteUltimoPagamento}>
+        Vencida desde {formatarDataCurta(inadimplente.vencimentoMaisAntigoISO)}
+      </Text>
     </View>
   );
 }
@@ -404,13 +291,22 @@ interface DadosLancamento {
 interface ModalLancamentoProps {
   visivel: boolean;
   lancamentoEditando: Lancamento | null;
+  despesaCategorias: CategoriaInfo[];
+  receitaCategorias: CategoriaInfo[];
   onFechar: () => void;
   onSalvar: (dados: DadosLancamento, idEdicao: string | null) => void;
 }
 
-function ModalLancamento({ visivel, lancamentoEditando, onFechar, onSalvar }: ModalLancamentoProps) {
+function ModalLancamento({
+  visivel,
+  lancamentoEditando,
+  despesaCategorias,
+  receitaCategorias,
+  onFechar,
+  onSalvar,
+}: ModalLancamentoProps) {
   const [tipo, setTipo] = useState<TipoLancamento>('despesa');
-  const [categoriaId, setCategoriaId] = useState('manutencao');
+  const [categoriaId, setCategoriaId] = useState('');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [dataSelecionada, setDataSelecionada] = useState<Date>(new Date());
@@ -419,20 +315,25 @@ function ModalLancamento({ visivel, lancamentoEditando, onFechar, onSalvar }: Mo
 
   React.useEffect(() => {
     if (visivel) {
-      setTipo(lancamentoEditando?.tipo ?? 'despesa');
-      setCategoriaId(lancamentoEditando?.categoriaId ?? 'manutencao');
+      const tipoInicial = lancamentoEditando?.tipo ?? 'despesa';
+      setTipo(tipoInicial);
+      setCategoriaId(
+        lancamentoEditando?.categoriaId ??
+          (tipoInicial === 'despesa' ? despesaCategorias[0]?.id : receitaCategorias[0]?.id) ??
+          ''
+      );
       setDescricao(lancamentoEditando?.descricao ?? '');
       setValor(lancamentoEditando ? String(lancamentoEditando.valor) : '');
       setDataSelecionada(lancamentoEditando ? new Date(lancamentoEditando.dataISO) : new Date());
     }
-  }, [visivel, lancamentoEditando]);
+  }, [visivel, lancamentoEditando, despesaCategorias, receitaCategorias]);
 
   function handleAlternarTipo(novoTipo: TipoLancamento) {
     setTipo(novoTipo);
-    setCategoriaId(novoTipo === 'despesa' ? DESPESA_CATEGORIAS[0].id : RECEITA_CATEGORIAS[0].id);
+    setCategoriaId((novoTipo === 'despesa' ? despesaCategorias[0]?.id : receitaCategorias[0]?.id) ?? '');
   }
 
-  const categoriasDisponiveis = tipo === 'despesa' ? DESPESA_CATEGORIAS : RECEITA_CATEGORIAS;
+  const categoriasDisponiveis = tipo === 'despesa' ? despesaCategorias : receitaCategorias;
   const valorNumerico = Number(valor.replace(',', '.'));
   const podeSalvar = descricao.trim().length > 0 && valor.trim().length > 0 && !isNaN(valorNumerico) && valorNumerico > 0;
 
@@ -444,7 +345,7 @@ function ModalLancamento({ visivel, lancamentoEditando, onFechar, onSalvar }: Mo
         categoriaId,
         descricao: descricao.trim(),
         valor: valorNumerico,
-        dataISO: dataSelecionada.toISOString(),
+        dataISO: formatarDataISO(dataSelecionada),
       },
       lancamentoEditando?.id ?? null
     );
@@ -581,17 +482,125 @@ function ModalConfirmarExclusao({
 
 export default function TelaFinanceiroSindico() {
   const hoje = useMemo(() => new Date(), []);
-  const dadosIniciais = useMemo(() => gerarDadosMock(hoje), [hoje]);
 
   const [abaAtiva, setAbaAtiva] = useState<Aba>('resumo');
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>(dadosIniciais.lancamentos);
-  const [inadimplentes, setInadimplentes] = useState<Inadimplente[]>(dadosIniciais.inadimplentes);
+  const [categorias, setCategorias] = useState<CategoriaInfo[]>([]);
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [inadimplentes, setInadimplentes] = useState<Inadimplente[]>([]);
   const [mesSelecionado, setMesSelecionado] = useState<Date>(hoje);
 
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos');
   const [modalLancamentoVisivel, setModalLancamentoVisivel] = useState(false);
   const [lancamentoEditando, setLancamentoEditando] = useState<Lancamento | null>(null);
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState<Lancamento | null>(null);
+
+  useEffect(() => {
+    carregarCategorias();
+    carregarLancamentos();
+    carregarInadimplentes();
+  }, []);
+
+  async function carregarCategorias() {
+    const { data, error } = await supabase
+      .from('categorias_financeiras')
+      .select('id, nome, tipo, cor, orcamento_mensal');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as categorias financeiras.');
+      return;
+    }
+
+    setCategorias(
+      (data ?? []).map((c) => ({
+        id: c.id,
+        nome: c.nome,
+        cor: c.cor ?? '#8A8377',
+        tipo: c.tipo,
+        orcamentoMensal: c.orcamento_mensal,
+      }))
+    );
+  }
+
+  async function carregarLancamentos() {
+    const { data, error } = await supabase
+      .from('lancamentos_financeiros')
+      .select('id, tipo, categoria_id, descricao, valor, data');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os lançamentos.');
+      return;
+    }
+
+    setLancamentos(
+      (data ?? []).map((l) => ({
+        id: l.id,
+        tipo: l.tipo,
+        categoriaId: l.categoria_id ?? '',
+        descricao: l.descricao,
+        valor: Number(l.valor),
+        dataISO: l.data,
+      }))
+    );
+  }
+
+  async function carregarInadimplentes() {
+    const hojeISO = formatarDataISO(new Date());
+    const { data: faturasVencidas, error } = await supabase
+      .from('faturas')
+      .select('id, morador_id, valor, vencimento')
+      .eq('status', 'pendente')
+      .lt('vencimento', hojeISO);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar a inadimplência.');
+      return;
+    }
+
+    const linhas = faturasVencidas ?? [];
+    if (linhas.length === 0) {
+      setInadimplentes([]);
+      return;
+    }
+
+    const moradorIds = [...new Set(linhas.map((f) => f.morador_id))];
+    const { data: perfis } = await supabase.from('profiles').select('id, nome, apto').in('id', moradorIds);
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+
+    const totalPorMorador = new Map<
+      string,
+      { valorDevido: number; faturasEmAtraso: number; vencimentoMaisAntigoISO: string }
+    >();
+    linhas.forEach((f) => {
+      const atual = totalPorMorador.get(f.morador_id) ?? {
+        valorDevido: 0,
+        faturasEmAtraso: 0,
+        vencimentoMaisAntigoISO: f.vencimento,
+      };
+      atual.valorDevido += Number(f.valor);
+      atual.faturasEmAtraso += 1;
+      if (f.vencimento < atual.vencimentoMaisAntigoISO) atual.vencimentoMaisAntigoISO = f.vencimento;
+      totalPorMorador.set(f.morador_id, atual);
+    });
+
+    setInadimplentes(
+      Array.from(totalPorMorador.entries()).map(([moradorId, dados]) => {
+        const perfil = perfilPorId.get(moradorId);
+        return {
+          moradorId,
+          morador: perfil?.nome ?? 'Morador não identificado',
+          apto: perfil?.apto ?? '-',
+          ...dados,
+        };
+      })
+    );
+  }
+
+  function getCategoria(id: string): CategoriaInfo {
+    return categorias.find((c) => c.id === id) ?? { id, nome: 'Outros', cor: '#8A8377', tipo: 'despesa', orcamentoMensal: null };
+  }
+
+  const despesaCategorias = useMemo(() => categorias.filter((c) => c.tipo === 'despesa'), [categorias]);
+  const receitaCategorias = useMemo(() => categorias.filter((c) => c.tipo === 'receita'), [categorias]);
 
   const lancamentosDoMes = useMemo(
     () => lancamentos.filter((l) => mesmoMes(l.dataISO, mesSelecionado)),
@@ -603,22 +612,26 @@ export default function TelaFinanceiroSindico() {
   const saldo = totalReceitas - totalDespesas;
 
   const despesasPorCategoria = useMemo(() => {
-    return DESPESA_CATEGORIAS.map((cat) => {
-      const realizado = lancamentosDoMes
-        .filter((l) => l.tipo === 'despesa' && l.categoriaId === cat.id)
-        .reduce((s, l) => s + l.valor, 0);
-      return { categoria: getCategoria(cat.id), realizado, orcado: ORCAMENTO_DESPESAS[cat.id] ?? null };
-    }).filter((item) => item.realizado > 0 || item.orcado !== null);
-  }, [lancamentosDoMes]);
+    return despesaCategorias
+      .map((cat) => {
+        const realizado = lancamentosDoMes
+          .filter((l) => l.tipo === 'despesa' && l.categoriaId === cat.id)
+          .reduce((s, l) => s + l.valor, 0);
+        return { categoria: cat, realizado, orcado: cat.orcamentoMensal };
+      })
+      .filter((item) => item.realizado > 0 || item.orcado !== null);
+  }, [despesaCategorias, lancamentosDoMes]);
 
   const receitasPorCategoria = useMemo(() => {
-    return RECEITA_CATEGORIAS.map((cat) => {
-      const realizado = lancamentosDoMes
-        .filter((l) => l.tipo === 'receita' && l.categoriaId === cat.id)
-        .reduce((s, l) => s + l.valor, 0);
-      return { categoria: getCategoria(cat.id), realizado };
-    }).filter((item) => item.realizado > 0);
-  }, [lancamentosDoMes]);
+    return receitaCategorias
+      .map((cat) => {
+        const realizado = lancamentosDoMes
+          .filter((l) => l.tipo === 'receita' && l.categoriaId === cat.id)
+          .reduce((s, l) => s + l.valor, 0);
+        return { categoria: cat, realizado };
+      })
+      .filter((item) => item.realizado > 0);
+  }, [receitaCategorias, lancamentosDoMes]);
 
   const lancamentosFiltrados = useMemo(() => {
     return [...lancamentosDoMes]
@@ -650,23 +663,64 @@ export default function TelaFinanceiroSindico() {
     setModalLancamentoVisivel(true);
   }
 
-  function handleSalvarLancamento(dados: DadosLancamento, idEdicao: string | null) {
+  async function handleSalvarLancamento(dados: DadosLancamento, idEdicao: string | null) {
     if (idEdicao) {
-      setLancamentos((atual) => atual.map((l) => (l.id === idEdicao ? { ...l, ...dados } : l)));
+      const { error } = await supabase
+        .from('lancamentos_financeiros')
+        .update({
+          tipo: dados.tipo,
+          categoria_id: dados.categoriaId,
+          descricao: dados.descricao,
+          valor: dados.valor,
+          data: dados.dataISO,
+        })
+        .eq('id', idEdicao);
+
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível atualizar o lançamento.');
+        return;
+      }
     } else {
-      setLancamentos((atual) => [...atual, { ...dados, id: String(Date.now()) }]);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+        return;
+      }
+
+      const { error } = await supabase.from('lancamentos_financeiros').insert({
+        tipo: dados.tipo,
+        categoria_id: dados.categoriaId,
+        descricao: dados.descricao,
+        valor: dados.valor,
+        data: dados.dataISO,
+        criado_por: user.id,
+      });
+
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível criar o lançamento.');
+        return;
+      }
     }
+
     setModalLancamentoVisivel(false);
+    carregarLancamentos();
   }
 
-  function handleConfirmarExclusao() {
+  async function handleConfirmarExclusao() {
     if (!lancamentoParaExcluir) return;
-    setLancamentos((atual) => atual.filter((l) => l.id !== lancamentoParaExcluir.id));
-    setLancamentoParaExcluir(null);
-  }
 
-  function handleAlternarNotificado(id: string) {
-    setInadimplentes((atual) => atual.map((i) => (i.id === id ? { ...i, notificado: !i.notificado } : i)));
+    const { error } = await supabase.from('lancamentos_financeiros').delete().eq('id', lancamentoParaExcluir.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível excluir o lançamento.');
+      return;
+    }
+
+    setLancamentoParaExcluir(null);
+    carregarLancamentos();
   }
 
   return (
@@ -763,6 +817,7 @@ export default function TelaFinanceiroSindico() {
             renderItem={({ item }) => (
               <CartaoLancamento
                 lancamento={item}
+                categoria={getCategoria(item.categoriaId)}
                 onEditar={() => handleAbrirEdicaoLancamento(item)}
                 onExcluir={() => setLancamentoParaExcluir(item)}
               />
@@ -785,10 +840,8 @@ export default function TelaFinanceiroSindico() {
       {abaAtiva === 'inadimplencia' && (
         <FlatList
           data={inadimplentes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <CartaoInadimplente inadimplente={item} onAlternarNotificado={() => handleAlternarNotificado(item.id)} />
-          )}
+          keyExtractor={(item) => item.moradorId}
+          renderItem={({ item }) => <CartaoInadimplente inadimplente={item} />}
           ListHeaderComponent={
             inadimplentes.length > 0 ? (
               <View style={styles.resumoInadimplencia}>
@@ -810,6 +863,8 @@ export default function TelaFinanceiroSindico() {
       <ModalLancamento
         visivel={modalLancamentoVisivel}
         lancamentoEditando={lancamentoEditando}
+        despesaCategorias={despesaCategorias}
+        receitaCategorias={receitaCategorias}
         onFechar={() => setModalLancamentoVisivel(false)}
         onSalvar={handleSalvarLancamento}
       />

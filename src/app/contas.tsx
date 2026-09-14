@@ -1,7 +1,8 @@
+// Tela de prestação de contas do morador — só leitura, dados vêm do Supabase.
 
-
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     FlatList,
     SafeAreaView,
     ScrollView,
@@ -11,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -41,79 +43,35 @@ interface MesFinanceiro {
 
 type Aba = 'resumo' | 'extrato';
 
-// ---------- Categorias ----------
-
-const CATEGORIAS_DESPESA: CategoriaInfo[] = [
-  { id: 'manutencao', nome: 'Manutenção', cor: '#3D6FB4' },
-  { id: 'limpeza', nome: 'Limpeza', cor: '#2F855A' },
-  { id: 'seguranca', nome: 'Segurança', cor: '#C0392B' },
-  { id: 'agua_luz', nome: 'Água e Energia', cor: '#B7791F' },
-  { id: 'salarios', nome: 'Salários', cor: '#7E57A6' },
-  { id: 'administrativo', nome: 'Administrativo', cor: '#8A8377' },
-];
-
-const CATEGORIAS_RECEITA: CategoriaInfo[] = [
-  { id: 'taxa_condominial', nome: 'Taxa condominial', cor: '#2F855A' },
-  { id: 'multas', nome: 'Multas', cor: '#B7791F' },
-  { id: 'aluguel_espacos', nome: 'Aluguel de espaços', cor: '#3D6FB4' },
-  { id: 'outras_receitas', nome: 'Outras receitas', cor: '#8A8377' },
-];
-
-function getCategoria(id: string): CategoriaInfo {
-  const encontrada = [...CATEGORIAS_DESPESA, ...CATEGORIAS_RECEITA].find((c) => c.id === id);
-  return encontrada ?? { id: 'outros', nome: 'Outros', cor: '#8A8377' };
-}
-
-// ---------- Dados mockados ----------
-
-const MESES_MOCK: MesFinanceiro[] = [
-  {
-    chave: '2026-06',
-    mes: 'Junho',
-    ano: 2026,
-    transacoes: [
-      { id: 't1', descricao: 'Taxa condominial - unidades', valor: 42000, tipo: 'receita', categoriaId: 'taxa_condominial', data: '2026-06-05', comComprovante: false },
-      { id: 't2', descricao: 'Aluguel do salão de festas', valor: 800, tipo: 'receita', categoriaId: 'aluguel_espacos', data: '2026-06-08', comComprovante: true },
-      { id: 't3', descricao: 'Multa por atraso - unidade 302', valor: 150, tipo: 'receita', categoriaId: 'multas', data: '2026-06-10', comComprovante: false },
-      { id: 't4', descricao: 'Manutenção do elevador', valor: 3200, tipo: 'despesa', categoriaId: 'manutencao', data: '2026-06-12', comComprovante: true },
-      { id: 't5', descricao: 'Serviço de limpeza terceirizado', valor: 4100, tipo: 'despesa', categoriaId: 'limpeza', data: '2026-06-14', comComprovante: true },
-      { id: 't6', descricao: 'Monitoramento e portaria', valor: 8900, tipo: 'despesa', categoriaId: 'seguranca', data: '2026-06-15', comComprovante: true },
-      { id: 't7', descricao: 'Conta de água', valor: 2450, tipo: 'despesa', categoriaId: 'agua_luz', data: '2026-06-18', comComprovante: true },
-      { id: 't8', descricao: 'Conta de energia - áreas comuns', valor: 1870, tipo: 'despesa', categoriaId: 'agua_luz', data: '2026-06-18', comComprovante: true },
-      { id: 't9', descricao: 'Folha de pagamento - equipe', valor: 12500, tipo: 'despesa', categoriaId: 'salarios', data: '2026-06-20', comComprovante: false },
-      { id: 't10', descricao: 'Materiais de escritório e cartório', valor: 340, tipo: 'despesa', categoriaId: 'administrativo', data: '2026-06-22', comComprovante: false },
-    ],
-  },
-  {
-    chave: '2026-05',
-    mes: 'Maio',
-    ano: 2026,
-    transacoes: [
-      { id: 't11', descricao: 'Taxa condominial - unidades', valor: 41500, tipo: 'receita', categoriaId: 'taxa_condominial', data: '2026-05-05', comComprovante: false },
-      { id: 't12', descricao: 'Aluguel do salão de festas', valor: 800, tipo: 'receita', categoriaId: 'aluguel_espacos', data: '2026-05-11', comComprovante: true },
-      { id: 't13', descricao: 'Pintura da fachada (parcela 2/3)', valor: 9800, tipo: 'despesa', categoriaId: 'manutencao', data: '2026-05-09', comComprovante: true },
-      { id: 't14', descricao: 'Serviço de limpeza terceirizado', valor: 4100, tipo: 'despesa', categoriaId: 'limpeza', data: '2026-05-14', comComprovante: true },
-      { id: 't15', descricao: 'Monitoramento e portaria', valor: 8900, tipo: 'despesa', categoriaId: 'seguranca', data: '2026-05-15', comComprovante: true },
-      { id: 't16', descricao: 'Conta de água', valor: 2210, tipo: 'despesa', categoriaId: 'agua_luz', data: '2026-05-18', comComprovante: true },
-      { id: 't17', descricao: 'Folha de pagamento - equipe', valor: 12500, tipo: 'despesa', categoriaId: 'salarios', data: '2026-05-20', comComprovante: false },
-    ],
-  },
-  {
-    chave: '2026-04',
-    mes: 'Abril',
-    ano: 2026,
-    transacoes: [
-      { id: 't18', descricao: 'Taxa condominial - unidades', valor: 41500, tipo: 'receita', categoriaId: 'taxa_condominial', data: '2026-04-05', comComprovante: false },
-      { id: 't19', descricao: 'Multa por atraso - unidade 108', valor: 150, tipo: 'receita', categoriaId: 'multas', data: '2026-04-09', comComprovante: false },
-      { id: 't20', descricao: 'Pintura da fachada (parcela 1/3)', valor: 9800, tipo: 'despesa', categoriaId: 'manutencao', data: '2026-04-10', comComprovante: true },
-      { id: 't21', descricao: 'Serviço de limpeza terceirizado', valor: 4050, tipo: 'despesa', categoriaId: 'limpeza', data: '2026-04-14', comComprovante: true },
-      { id: 't22', descricao: 'Monitoramento e portaria', valor: 8900, tipo: 'despesa', categoriaId: 'seguranca', data: '2026-04-15', comComprovante: true },
-      { id: 't23', descricao: 'Folha de pagamento - equipe', valor: 12500, tipo: 'despesa', categoriaId: 'salarios', data: '2026-04-20', comComprovante: false },
-    ],
-  },
-];
-
 // ---------- Helpers ----------
+
+const NOMES_MES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function agruparPorMes(lancamentos: { id: string; tipo: TipoTransacao; categoria_id: string | null; descricao: string; valor: number; data: string; comprovante_url: string | null }[]): MesFinanceiro[] {
+  const mapa = new Map<string, MesFinanceiro>();
+
+  lancamentos.forEach((l) => {
+    const chave = l.data.slice(0, 7); // 'AAAA-MM'
+    const [anoStr, mesStr] = chave.split('-');
+    if (!mapa.has(chave)) {
+      mapa.set(chave, { chave, mes: NOMES_MES[Number(mesStr) - 1] ?? mesStr, ano: Number(anoStr), transacoes: [] });
+    }
+    mapa.get(chave)!.transacoes.push({
+      id: l.id,
+      descricao: l.descricao,
+      valor: Number(l.valor),
+      tipo: l.tipo,
+      categoriaId: l.categoria_id ?? 'outros',
+      data: l.data,
+      comComprovante: !!l.comprovante_url,
+    });
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => (a.chave < b.chave ? 1 : -1));
+}
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -131,7 +89,11 @@ interface ResumoMes {
   porCategoriaDespesa: { categoria: CategoriaInfo; total: number; percentual: number }[];
 }
 
-function calcularResumo(mes: MesFinanceiro): ResumoMes {
+function getCategoria(categorias: CategoriaInfo[], id: string): CategoriaInfo {
+  return categorias.find((c) => c.id === id) ?? { id: 'outros', nome: 'Outros', cor: '#8A8377' };
+}
+
+function calcularResumo(mes: MesFinanceiro, categorias: CategoriaInfo[]): ResumoMes {
   const totalReceitas = mes.transacoes
     .filter((t) => t.tipo === 'receita')
     .reduce((soma, t) => soma + t.valor, 0);
@@ -146,7 +108,7 @@ function calcularResumo(mes: MesFinanceiro): ResumoMes {
 
   const porCategoriaDespesa = Array.from(totaisPorCategoria.entries())
     .map(([categoriaId, total]) => ({
-      categoria: getCategoria(categoriaId),
+      categoria: getCategoria(categorias, categoriaId),
       total,
       percentual: totalDespesas > 0 ? total / totalDespesas : 0,
     }))
@@ -215,10 +177,10 @@ function BarraCategoria({ nome, cor, total, percentual }: BarraCategoriaProps) {
 
 interface ItemExtratoProps {
   transacao: Transacao;
+  categoria: CategoriaInfo;
 }
 
-function ItemExtrato({ transacao }: ItemExtratoProps) {
-  const categoria = getCategoria(transacao.categoriaId);
+function ItemExtrato({ transacao, categoria }: ItemExtratoProps) {
   const ehReceita = transacao.tipo === 'receita';
 
   return (
@@ -256,16 +218,49 @@ function ItemExtrato({ transacao }: ItemExtratoProps) {
 export default function TelaPrestacaoContas() {
   const [indiceMes, setIndiceMes] = useState<number>(0);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('resumo');
+  const [categorias, setCategorias] = useState<CategoriaInfo[]>([]);
+  const [meses, setMeses] = useState<MesFinanceiro[]>([]);
 
-  const mesAtual = MESES_MOCK[indiceMes];
-  const resumo = useMemo(() => calcularResumo(mesAtual), [mesAtual]);
+  useEffect(() => {
+    carregarCategorias();
+    carregarLancamentos();
+  }, []);
+
+  async function carregarCategorias() {
+    const { data, error } = await supabase
+      .from('categorias_financeiras')
+      .select('id, nome, cor');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar as categorias financeiras.');
+      return;
+    }
+
+    setCategorias((data ?? []).map((c) => ({ id: c.id, nome: c.nome, cor: c.cor ?? '#8A8377' })));
+  }
+
+  async function carregarLancamentos() {
+    const { data, error } = await supabase
+      .from('lancamentos_financeiros')
+      .select('id, tipo, categoria_id, descricao, valor, data, comprovante_url');
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os lançamentos financeiros.');
+      return;
+    }
+
+    setMeses(agruparPorMes(data ?? []));
+  }
+
+  const mesAtual = meses[indiceMes];
+  const resumo = useMemo(() => (mesAtual ? calcularResumo(mesAtual, categorias) : null), [mesAtual, categorias]);
 
   const extratoOrdenado = useMemo(
-    () => [...mesAtual.transacoes].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
+    () => (mesAtual ? [...mesAtual.transacoes].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()) : []),
     [mesAtual]
   );
 
-  const temMesAnterior = indiceMes < MESES_MOCK.length - 1;
+  const temMesAnterior = indiceMes < meses.length - 1;
   const temMesPosterior = indiceMes > 0;
 
   function irParaMesAnterior() {
@@ -279,6 +274,21 @@ export default function TelaPrestacaoContas() {
   function handleBaixarRelatorio() {
     // Espaço reservado para geração/abertura real do PDF, ex:
     // await abrirRelatorioPdf(mesAtual.chave)
+  }
+
+  if (!mesAtual || !resumo) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={styles.cabecalho}>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Prestação de Contas</Text>
+        </View>
+        <Text style={{ paddingHorizontal: 20, color: '#8A8377', fontSize: 13 }}>
+          Nenhum lançamento financeiro registrado ainda.
+        </Text>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -356,7 +366,7 @@ export default function TelaPrestacaoContas() {
         <FlatList
           data={extratoOrdenado}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ItemExtrato transacao={item} />}
+          renderItem={({ item }) => <ItemExtrato transacao={item} categoria={getCategoria(categorias, item.categoriaId)} />}
           contentContainerStyle={styles.conteudoScroll}
           showsVerticalScrollIndicator={false}
         />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   View,
@@ -12,7 +12,9 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -47,37 +49,6 @@ const CONFIG_PORTE: Record<Porte, string> = {
   medio: 'Médio porte',
   grande: 'Grande porte',
 };
-
-// ---------- Dados mockados ----------
-
-const MOCK_MEUS_PETS: Pet[] = [
-  {
-    id: 'p1',
-    nome: 'Mel',
-    especie: 'cachorro',
-    raca: 'SRD (vira-lata)',
-    cor: 'Caramelo',
-    porte: 'medio',
-    sexo: 'femea',
-    idade: '3 anos',
-    castrado: true,
-    vacinacaoEmDia: true,
-    caracteristicas: 'Usa coleira azul com plaquinha de identificação. Muito dócil com estranhos.',
-  },
-  {
-    id: 'p2',
-    nome: 'Nina',
-    especie: 'gato',
-    raca: 'Siamês',
-    cor: 'Clara com pontas escuras',
-    porte: 'pequeno',
-    sexo: 'femea',
-    idade: '1 ano',
-    castrado: true,
-    vacinacaoEmDia: true,
-    caracteristicas: 'Olhos azuis, pelagem curta. Costuma se esconder quando assustada.',
-  },
-];
 
 // ---------- Subcomponentes ----------
 
@@ -374,9 +345,50 @@ function ModalPet({ visivel, petEditando, onFechar, onSalvar }: ModalPetProps) {
 // ---------- Tela principal ----------
 
 export default function TelaMeusPets() {
-  const [pets, setPets] = useState<Pet[]>(MOCK_MEUS_PETS);
+  const [pets, setPets] = useState<Pet[]>([]);
   const [modalVisivel, setModalVisivel] = useState(false);
   const [petEditando, setPetEditando] = useState<Pet | null>(null);
+
+  useEffect(() => {
+    carregarPets();
+  }, []);
+
+  async function carregarPets() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('pets')
+      .select('id, nome, especie, raca, cor, porte, sexo, idade, castrado, vacinacao_em_dia, caracteristicas')
+      .eq('morador_id', user.id);
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar seus pets.');
+      return;
+    }
+
+    setPets(
+      (data ?? []).map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        especie: p.especie,
+        raca: p.raca ?? '',
+        cor: p.cor,
+        porte: p.porte,
+        sexo: p.sexo,
+        idade: p.idade ?? '',
+        castrado: p.castrado ?? false,
+        vacinacaoEmDia: p.vacinacao_em_dia ?? false,
+        caracteristicas: p.caracteristicas ?? '',
+      }))
+    );
+  }
 
   function handleAbrirNovo() {
     setPetEditando(null);
@@ -388,16 +400,53 @@ export default function TelaMeusPets() {
     setModalVisivel(true);
   }
 
-  function handleSalvarPet(dados: Omit<Pet, 'id'>, idEdicao: string | null) {
+  async function handleSalvarPet(dados: Omit<Pet, 'id'>, idEdicao: string | null) {
+    const payload = {
+      nome: dados.nome,
+      especie: dados.especie,
+      raca: dados.raca,
+      cor: dados.cor,
+      porte: dados.porte,
+      sexo: dados.sexo,
+      idade: dados.idade,
+      castrado: dados.castrado,
+      vacinacao_em_dia: dados.vacinacaoEmDia,
+      caracteristicas: dados.caracteristicas,
+    };
+
     if (idEdicao) {
-      setPets((atual) => atual.map((p) => (p.id === idEdicao ? { ...p, ...dados } : p)));
+      const { error } = await supabase.from('pets').update(payload).eq('id', idEdicao);
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível atualizar o pet.');
+        return;
+      }
     } else {
-      setPets((atual) => [...atual, { ...dados, id: String(Date.now()) }]);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+        return;
+      }
+
+      const { error } = await supabase.from('pets').insert({ ...payload, morador_id: user.id });
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível cadastrar o pet.');
+        return;
+      }
     }
+
     setModalVisivel(false);
+    carregarPets();
   }
 
-  function handleRemoverPet(id: string) {
+  async function handleRemoverPet(id: string) {
+    const { error } = await supabase.from('pets').delete().eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover o pet.');
+      return;
+    }
     setPets((atual) => atual.filter((p) => p.id !== id));
   }
 

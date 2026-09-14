@@ -1,7 +1,9 @@
+// Tela de Comunicados — leitura apenas (escrita é restrita ao síndico), dados vêm do Supabase (tabela comunicados).
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 interface Comunicado {
   id: string;
@@ -12,18 +14,44 @@ interface Comunicado {
 
 export default function Comunicados() {
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    // TODO: Integrar com API/serviço para carregar comunicados
-    setComunicados([
-      {
-        id: '1',
-        titulo: 'Manutenção predial',
-        conteudo: 'Será realizada manutenção no dia 25/06',
-        data: '2026-06-22',
-      },
-    ]);
+    carregarComunicados();
   }, []);
+
+  async function carregarComunicados() {
+    setCarregando(true);
+
+    const { data, error } = await supabase
+      .from('comunicados')
+      .select('*')
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar os comunicados.');
+      setCarregando(false);
+      return;
+    }
+
+    setComunicados(
+      (data ?? []).map((row) => ({
+        id: row.id,
+        titulo: row.titulo,
+        conteudo: row.conteudo,
+        data: row.criado_em,
+      }))
+    );
+    setCarregando(false);
+  }
+
+  if (carregando) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

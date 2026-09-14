@@ -1,18 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   SafeAreaView,
-  View,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
   Text,
   TextInput,
-  FlatList,
   TouchableOpacity,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  Platform,
-  KeyboardAvoidingView,
+  View,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
 
@@ -22,44 +25,36 @@ type Aba = 'veiculos' | 'minhaVaga' | 'alugarVagas';
 interface Veiculo {
   id: string;
   placa: string;
-  modelo: string;
-  cor: string;
+  modelo: string | null;
+  cor: string | null;
   tipo: TipoVeiculo;
-  vagaId: string | null; // 'propria' | id de uma vaga alugada | null
+  vaga_id: string | null;
 }
 
-interface Locatario {
+interface VagaRow {
+  id: string;
+  morador_id: string;
+  numero: string;
+  localizacao: string | null;
+  disponivel_aluguel: boolean;
+  valor_mensal: number | null;
+  descricao: string | null;
+}
+
+interface LocatarioInfo {
+  aluguelId: string;
   nome: string;
-  apto: string;
-  veiculo: string;
+  apto: string | null;
 }
 
-interface MinhaVaga {
-  id: string;
-  numero: string;
-  localizacao: string;
-  disponibilizadaParaAluguel: boolean;
-  valorMensal: number | null;
-  descricao: string;
-  locatario: Locatario | null;
-}
-
-interface VagaMercado {
-  id: string;
-  numero: string;
-  localizacao: string;
-  valorMensal: number;
-  descricao: string;
-  proprietario: string;
+interface VagaMercado extends VagaRow {
+  proprietarioApto: string;
   alugadaPorMim: boolean;
-  dataInicioISO?: string;
+  aluguelId: string | null;
+  dataInicio: string | null;
 }
 
 // ---------- Helpers ----------
-
-function addDias(data: Date, dias: number): Date {
-  return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
-}
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -67,58 +62,6 @@ function formatarMoeda(valor: number): string {
 
 function formatarDataCurta(dataISO: string): string {
   return new Date(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-// ---------- Dados mockados ----------
-// O cenário inicial já demonstra os principais estados da tela: a vaga
-// própria está alugada para outro morador, e o veículo do usuário está
-// estacionado em uma vaga que ele mesmo aluga de terceiros.
-
-function gerarDadosMock(hoje: Date) {
-  const minhaVaga: MinhaVaga = {
-    id: 'vp1',
-    numero: 'Vaga 42',
-    localizacao: 'Subsolo 1 - Bloco B',
-    disponibilizadaParaAluguel: true,
-    valorMensal: 170,
-    descricao: 'Vaga coberta, de fácil acesso ao elevador.',
-    locatario: { nome: 'Rafael Souza', apto: 'Apto 305', veiculo: 'Fiat Argo - Branco' },
-  };
-
-  const vagasMercado: VagaMercado[] = [
-    {
-      id: 'm1',
-      numero: 'Vaga 15',
-      localizacao: 'Térreo - Bloco A',
-      valorMensal: 180,
-      descricao: 'Vaga coberta, próxima ao elevador social.',
-      proprietario: 'Apto 204',
-      alugadaPorMim: false,
-    },
-    {
-      id: 'm2',
-      numero: 'Vaga 63',
-      localizacao: 'Subsolo 2 - Bloco C',
-      valorMensal: 150,
-      descricao: 'Vaga descoberta, ideal para moto ou carro pequeno.',
-      proprietario: 'Apto 512',
-      alugadaPorMim: false,
-    },
-    {
-      id: 'm3',
-      numero: 'Vaga 08',
-      localizacao: 'Térreo - Bloco B',
-      valorMensal: 200,
-      descricao: 'Vaga ampla, próxima ao portão eletrônico.',
-      proprietario: 'Apto 108',
-      alugadaPorMim: true,
-      dataInicioISO: addDias(hoje, -20).toISOString(),
-    },
-  ];
-
-  const veiculos: Veiculo[] = [{ id: 'v1', placa: 'ABC1D23', modelo: 'Honda Civic', cor: 'Prata', tipo: 'carro', vagaId: 'm3' }];
-
-  return { minhaVaga, vagasMercado, veiculos };
 }
 
 // ---------- Subcomponentes ----------
@@ -170,7 +113,7 @@ function CartaoVeiculo({ veiculo, labelVaga, onEditar, onRemover }: CartaoVeicul
       <View style={styles.cartaoConteudo}>
         <Text style={styles.cartaoPlaca}>{veiculo.placa}</Text>
         <Text style={styles.cartaoModelo}>
-          {veiculo.modelo} · {veiculo.cor}
+          {veiculo.modelo || 'Modelo não informado'} · {veiculo.cor || 'Cor não informada'}
         </Text>
         <Text style={styles.cartaoVaga}>{labelVaga}</Text>
 
@@ -199,18 +142,18 @@ function CartaoVagaMercado({ vaga, onAlugar, onEncerrar }: CartaoVagaMercadoProp
       <View style={styles.cartaoVaga2Topo}>
         <View style={{ flex: 1 }}>
           <Text style={styles.cartaoVaga2Numero}>{vaga.numero}</Text>
-          <Text style={styles.cartaoVaga2Local}>{vaga.localizacao}</Text>
+          <Text style={styles.cartaoVaga2Local}>{vaga.localizacao || 'Localização não informada'}</Text>
         </View>
-        <Text style={styles.cartaoVaga2Valor}>{formatarMoeda(vaga.valorMensal)}/mês</Text>
+        <Text style={styles.cartaoVaga2Valor}>{vaga.valor_mensal ? formatarMoeda(vaga.valor_mensal) : '—'}/mês</Text>
       </View>
 
-      <Text style={styles.cartaoVaga2Descricao}>{vaga.descricao}</Text>
-      <Text style={styles.cartaoVaga2Proprietario}>Anunciada por {vaga.proprietario}</Text>
+      <Text style={styles.cartaoVaga2Descricao}>{vaga.descricao || 'Sem descrição.'}</Text>
+      <Text style={styles.cartaoVaga2Proprietario}>Anunciada por {vaga.proprietarioApto}</Text>
 
       {vaga.alugadaPorMim ? (
         <>
-          {vaga.dataInicioISO && (
-            <Text style={styles.cartaoVaga2Desde}>Alugando desde {formatarDataCurta(vaga.dataInicioISO)}</Text>
+          {vaga.dataInicio && (
+            <Text style={styles.cartaoVaga2Desde}>Alugando desde {formatarDataCurta(vaga.dataInicio)}</Text>
           )}
           <TouchableOpacity style={styles.botaoSecundario} onPress={() => onEncerrar(vaga.id)} activeOpacity={0.85}>
             <Text style={styles.botaoSecundarioTexto}>Encerrar aluguel</Text>
@@ -240,7 +183,7 @@ function ModalVeiculo({ visivel, veiculoEditando, opcoesVaga, onFechar, onSalvar
   const [modelo, setModelo] = useState(veiculoEditando?.modelo ?? '');
   const [cor, setCor] = useState(veiculoEditando?.cor ?? '');
   const [tipo, setTipo] = useState<TipoVeiculo>(veiculoEditando?.tipo ?? 'carro');
-  const [vagaId, setVagaId] = useState<string | null>(veiculoEditando?.vagaId ?? null);
+  const [vagaId, setVagaId] = useState<string | null>(veiculoEditando?.vaga_id ?? null);
 
   React.useEffect(() => {
     if (visivel) {
@@ -248,7 +191,7 @@ function ModalVeiculo({ visivel, veiculoEditando, opcoesVaga, onFechar, onSalvar
       setModelo(veiculoEditando?.modelo ?? '');
       setCor(veiculoEditando?.cor ?? '');
       setTipo(veiculoEditando?.tipo ?? 'carro');
-      setVagaId(veiculoEditando?.vagaId ?? null);
+      setVagaId(veiculoEditando?.vaga_id ?? null);
     }
   }, [visivel, veiculoEditando]);
 
@@ -257,7 +200,7 @@ function ModalVeiculo({ visivel, veiculoEditando, opcoesVaga, onFechar, onSalvar
   function handleSalvar() {
     if (!podeSalvar) return;
     onSalvar(
-      { placa: placa.trim().toUpperCase(), modelo: modelo.trim(), cor: cor.trim() || 'Não informada', tipo, vagaId },
+      { placa: placa.trim().toUpperCase(), modelo: modelo.trim(), cor: cor.trim() || 'Não informada', tipo, vaga_id: vagaId },
       veiculoEditando?.id ?? null
     );
   }
@@ -352,28 +295,37 @@ function ModalVeiculo({ visivel, veiculoEditando, opcoesVaga, onFechar, onSalvar
 
 interface ModalAnuncioVagaProps {
   visivel: boolean;
-  vaga: MinhaVaga;
+  vaga: VagaRow | null;
   onFechar: () => void;
-  onSalvar: (valorMensal: number, descricao: string) => void;
+  onSalvar: (dados: { numero: string; localizacao: string; valorMensal: number; descricao: string }) => void;
 }
 
 function ModalAnuncioVaga({ visivel, vaga, onFechar, onSalvar }: ModalAnuncioVagaProps) {
-  const [valor, setValor] = useState(vaga.valorMensal ? String(vaga.valorMensal) : '');
-  const [descricao, setDescricao] = useState(vaga.descricao ?? '');
+  const [numero, setNumero] = useState(vaga?.numero ?? '');
+  const [localizacao, setLocalizacao] = useState(vaga?.localizacao ?? '');
+  const [valor, setValor] = useState(vaga?.valor_mensal ? String(vaga.valor_mensal) : '');
+  const [descricao, setDescricao] = useState(vaga?.descricao ?? '');
 
   React.useEffect(() => {
     if (visivel) {
-      setValor(vaga.valorMensal ? String(vaga.valorMensal) : '');
-      setDescricao(vaga.descricao ?? '');
+      setNumero(vaga?.numero ?? '');
+      setLocalizacao(vaga?.localizacao ?? '');
+      setValor(vaga?.valor_mensal ? String(vaga.valor_mensal) : '');
+      setDescricao(vaga?.descricao ?? '');
     }
   }, [visivel, vaga]);
 
   const valorNumerico = Number(valor.replace(',', '.'));
-  const podeSalvar = valor.trim().length > 0 && !isNaN(valorNumerico) && valorNumerico > 0;
+  const precisaDadosVaga = !vaga;
+  const podeSalvar =
+    valor.trim().length > 0 &&
+    !isNaN(valorNumerico) &&
+    valorNumerico > 0 &&
+    (!precisaDadosVaga || (numero.trim().length > 0 && localizacao.trim().length > 0));
 
   function handleSalvar() {
     if (!podeSalvar) return;
-    onSalvar(valorNumerico, descricao.trim());
+    onSalvar({ numero: numero.trim(), localizacao: localizacao.trim(), valorMensal: valorNumerico, descricao: descricao.trim() });
   }
 
   return (
@@ -389,9 +341,33 @@ function ModalAnuncioVaga({ visivel, vaga, onFechar, onSalvar }: ModalAnuncioVag
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.modalSubtitulo}>
-            {vaga.numero} · {vaga.localizacao}
-          </Text>
+          {vaga ? (
+            <Text style={styles.modalSubtitulo}>
+              {vaga.numero} · {vaga.localizacao || 'Localização não informada'}
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.campoLabel}>Número da vaga</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex.: Vaga 42"
+                placeholderTextColor="#A8A199"
+                value={numero}
+                onChangeText={setNumero}
+                maxLength={30}
+              />
+
+              <Text style={styles.campoLabel}>Localização</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex.: Subsolo 1 - Bloco B"
+                placeholderTextColor="#A8A199"
+                value={localizacao}
+                onChangeText={setLocalizacao}
+                maxLength={60}
+              />
+            </>
+          )}
 
           <Text style={styles.campoLabel}>Valor mensal (R$)</Text>
           <TextInput
@@ -456,9 +432,9 @@ function ModalConfirmarAluguel({ vaga, onFechar, onConfirmar }: ModalConfirmarAl
             <>
               <View style={styles.resumoVaga}>
                 <Text style={styles.resumoVagaNumero}>{vaga.numero}</Text>
-                <Text style={styles.resumoVagaLocal}>{vaga.localizacao}</Text>
-                <Text style={styles.resumoVagaValor}>{formatarMoeda(vaga.valorMensal)}/mês</Text>
-                <Text style={styles.resumoVagaProprietario}>Anunciada por {vaga.proprietario}</Text>
+                <Text style={styles.resumoVagaLocal}>{vaga.localizacao || 'Localização não informada'}</Text>
+                <Text style={styles.resumoVagaValor}>{vaga.valor_mensal ? formatarMoeda(vaga.valor_mensal) : '—'}/mês</Text>
+                <Text style={styles.resumoVagaProprietario}>Anunciada por {vaga.proprietarioApto}</Text>
               </View>
 
               <TouchableOpacity
@@ -483,35 +459,154 @@ function ModalConfirmarAluguel({ vaga, onFechar, onConfirmar }: ModalConfirmarAl
 // ---------- Tela principal ----------
 
 export default function TelaVagasVeiculos() {
-  const hoje = useMemo(() => new Date(), []);
-  const dadosIniciais = useMemo(() => gerarDadosMock(hoje), [hoje]);
+  const [carregando, setCarregando] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [abaAtiva, setAbaAtiva] = useState<Aba>('veiculos');
-  const [veiculos, setVeiculos] = useState<Veiculo[]>(dadosIniciais.veiculos);
-  const [minhaVaga, setMinhaVaga] = useState<MinhaVaga>(dadosIniciais.minhaVaga);
-  const [vagasMercado, setVagasMercado] = useState<VagaMercado[]>(dadosIniciais.vagasMercado);
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
+  const [minhaVaga, setMinhaVaga] = useState<VagaRow | null>(null);
+  const [locatarioAtual, setLocatarioAtual] = useState<LocatarioInfo | null>(null);
+  const [vagasDisponiveis, setVagasDisponiveis] = useState<VagaMercado[]>([]);
+  const [vagasAlugando, setVagasAlugando] = useState<VagaMercado[]>([]);
 
   const [modalVeiculoVisivel, setModalVeiculoVisivel] = useState(false);
   const [veiculoEditando, setVeiculoEditando] = useState<Veiculo | null>(null);
   const [modalAnuncioVisivel, setModalAnuncioVisivel] = useState(false);
   const [vagaParaAlugar, setVagaParaAlugar] = useState<VagaMercado | null>(null);
 
+  useEffect(() => {
+    carregarTudo();
+  }, []);
+
+  async function carregarTudo() {
+    setCarregando(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setCarregando(false);
+      return;
+    }
+
+    setUserId(user.id);
+    await Promise.all([carregarVeiculos(user.id), carregarMinhaVaga(user.id), carregarVagasMercado(user.id)]);
+    setCarregando(false);
+  }
+
+  async function carregarVeiculos(id: string) {
+    const { data, error } = await supabase.from('veiculos').select('*').eq('morador_id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar seus veículos.');
+      return;
+    }
+    setVeiculos(data ?? []);
+  }
+
+  async function carregarMinhaVaga(id: string) {
+    const { data: vaga, error } = await supabase.from('vagas').select('*').eq('morador_id', id).maybeSingle();
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível carregar sua vaga.');
+      return;
+    }
+    setMinhaVaga(vaga ?? null);
+
+    if (!vaga) {
+      setLocatarioAtual(null);
+      return;
+    }
+
+    const { data: aluguel } = await supabase
+      .from('alugueis_vaga')
+      .select('id, locatario_id')
+      .eq('vaga_id', vaga.id)
+      .eq('ativo', true)
+      .maybeSingle();
+
+    if (!aluguel) {
+      setLocatarioAtual(null);
+      return;
+    }
+
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('nome, apto')
+      .eq('id', aluguel.locatario_id)
+      .maybeSingle();
+
+    setLocatarioAtual({ aluguelId: aluguel.id, nome: perfil?.nome ?? 'Morador', apto: perfil?.apto ?? null });
+  }
+
+  async function carregarVagasMercado(id: string) {
+    const { data: alugueisMeus } = await supabase
+      .from('alugueis_vaga')
+      .select('id, vaga_id, data_inicio')
+      .eq('locatario_id', id)
+      .eq('ativo', true);
+
+    const idsAlugadas = (alugueisMeus ?? []).map((a) => a.vaga_id);
+
+    const { data: disponiveisData } = await supabase
+      .from('vagas')
+      .select('*')
+      .eq('disponivel_aluguel', true)
+      .neq('morador_id', id);
+
+    let alugadasData: VagaRow[] = [];
+    if (idsAlugadas.length > 0) {
+      const { data } = await supabase.from('vagas').select('*').in('id', idsAlugadas);
+      alugadasData = data ?? [];
+    }
+
+    const todasVagas = [...(disponiveisData ?? []), ...alugadasData];
+    const moradorIds = Array.from(new Set(todasVagas.map((v) => v.morador_id)));
+
+    let mapaProprietarios = new Map<string, string>();
+    if (moradorIds.length > 0) {
+      const { data: perfis } = await supabase.from('profiles').select('id, apto').in('id', moradorIds);
+      mapaProprietarios = new Map((perfis ?? []).map((p) => [p.id, p.apto ?? 'Apto não informado']));
+    }
+
+    const disponiveis: VagaMercado[] = (disponiveisData ?? [])
+      .filter((v) => !idsAlugadas.includes(v.id))
+      .map((v) => ({
+        ...v,
+        proprietarioApto: mapaProprietarios.get(v.morador_id) ?? 'Apto não informado',
+        alugadaPorMim: false,
+        aluguelId: null,
+        dataInicio: null,
+      }));
+
+    const alugando: VagaMercado[] = alugadasData.map((v) => {
+      const aluguel = alugueisMeus?.find((a) => a.vaga_id === v.id);
+      return {
+        ...v,
+        proprietarioApto: mapaProprietarios.get(v.morador_id) ?? 'Apto não informado',
+        alugadaPorMim: true,
+        aluguelId: aluguel?.id ?? null,
+        dataInicio: aluguel?.data_inicio ?? null,
+      };
+    });
+
+    setVagasDisponiveis(disponiveis);
+    setVagasAlugando(alugando);
+  }
+
   const opcoesVaga = useMemo(() => {
     const opcoes: { id: string | null; label: string }[] = [];
-    if (minhaVaga.locatario === null) {
-      opcoes.push({ id: 'propria', label: `${minhaVaga.numero} (própria)` });
+    if (minhaVaga) {
+      opcoes.push({ id: minhaVaga.id, label: `${minhaVaga.numero} (própria)` });
     }
-    vagasMercado
-      .filter((v) => v.alugadaPorMim)
-      .forEach((v) => opcoes.push({ id: v.id, label: `${v.numero} (alugada)` }));
+    vagasAlugando.forEach((v) => opcoes.push({ id: v.id, label: `${v.numero} (alugada)` }));
     opcoes.push({ id: null, label: 'Nenhuma vaga' });
     return opcoes;
-  }, [minhaVaga, vagasMercado]);
+  }, [minhaVaga, vagasAlugando]);
 
   function obterLabelVaga(vagaId: string | null): string {
-    if (vagaId === null) return 'Sem vaga vinculada';
-    if (vagaId === 'propria') return `${minhaVaga.numero} (própria)`;
-    const vaga = vagasMercado.find((v) => v.id === vagaId);
+    if (!vagaId) return 'Sem vaga vinculada';
+    if (minhaVaga && vagaId === minhaVaga.id) return `${minhaVaga.numero} (própria)`;
+    const vaga = vagasAlugando.find((v) => v.id === vagaId);
     return vaga ? `${vaga.numero} (alugada)` : 'Vaga não encontrada';
   }
 
@@ -525,49 +620,149 @@ export default function TelaVagasVeiculos() {
     setModalVeiculoVisivel(true);
   }
 
-  function handleSalvarVeiculo(dados: Omit<Veiculo, 'id'>, idEdicao: string | null) {
+  async function handleSalvarVeiculo(dados: Omit<Veiculo, 'id'>, idEdicao: string | null) {
+    if (!userId) return;
+
     if (idEdicao) {
-      setVeiculos((atual) => atual.map((v) => (v.id === idEdicao ? { ...v, ...dados } : v)));
+      const { error } = await supabase
+        .from('veiculos')
+        .update({ placa: dados.placa, modelo: dados.modelo, cor: dados.cor, tipo: dados.tipo, vaga_id: dados.vaga_id })
+        .eq('id', idEdicao);
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível salvar o veículo.');
+        return;
+      }
     } else {
-      setVeiculos((atual) => [...atual, { ...dados, id: String(Date.now()) }]);
+      const { error } = await supabase.from('veiculos').insert({
+        morador_id: userId,
+        placa: dados.placa,
+        modelo: dados.modelo,
+        cor: dados.cor,
+        tipo: dados.tipo,
+        vaga_id: dados.vaga_id,
+      });
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível cadastrar o veículo.');
+        return;
+      }
     }
+
     setModalVeiculoVisivel(false);
+    carregarVeiculos(userId);
   }
 
-  function handleRemoverVeiculo(id: string) {
-    setVeiculos((atual) => atual.filter((v) => v.id !== id));
+  async function handleRemoverVeiculo(id: string) {
+    const { error } = await supabase.from('veiculos').delete().eq('id', id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover o veículo.');
+      return;
+    }
+    if (userId) carregarVeiculos(userId);
   }
 
-  function handleSalvarAnuncio(valorMensal: number, descricao: string) {
-    setMinhaVaga((atual) => ({ ...atual, disponibilizadaParaAluguel: true, valorMensal, descricao }));
+  async function handleSalvarAnuncio(dados: { numero: string; localizacao: string; valorMensal: number; descricao: string }) {
+    if (!userId) return;
+
+    if (minhaVaga) {
+      const { error } = await supabase
+        .from('vagas')
+        .update({ disponivel_aluguel: true, valor_mensal: dados.valorMensal, descricao: dados.descricao })
+        .eq('id', minhaVaga.id);
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível atualizar o anúncio.');
+        return;
+      }
+    } else {
+      const { error } = await supabase.from('vagas').insert({
+        morador_id: userId,
+        numero: dados.numero,
+        localizacao: dados.localizacao || null,
+        disponivel_aluguel: true,
+        valor_mensal: dados.valorMensal,
+        descricao: dados.descricao,
+      });
+      if (error) {
+        Alert.alert('Erro', 'Não foi possível cadastrar a vaga.');
+        return;
+      }
+    }
+
     setModalAnuncioVisivel(false);
+    carregarMinhaVaga(userId);
   }
 
-  function handleRemoverAnuncio() {
-    setMinhaVaga((atual) => ({ ...atual, disponibilizadaParaAluguel: false, valorMensal: null, descricao: '' }));
+  async function handleRemoverAnuncio() {
+    if (!minhaVaga || !userId) return;
+    const { error } = await supabase
+      .from('vagas')
+      .update({ disponivel_aluguel: false, valor_mensal: null, descricao: null })
+      .eq('id', minhaVaga.id);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível remover o anúncio.');
+      return;
+    }
+    carregarMinhaVaga(userId);
   }
 
-  function handleEncerrarAluguelMinhaVaga() {
-    setMinhaVaga((atual) => ({ ...atual, locatario: null }));
+  async function handleEncerrarAluguelMinhaVaga() {
+    if (!locatarioAtual || !userId || !minhaVaga) return;
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { error } = await supabase
+      .from('alugueis_vaga')
+      .update({ ativo: false, data_fim: hoje })
+      .eq('id', locatarioAtual.aluguelId);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível encerrar o aluguel.');
+      return;
+    }
+    // Melhor esforço: só funciona se o veículo desvinculado for do próprio usuário logado (RLS).
+    await supabase.from('veiculos').update({ vaga_id: null }).eq('vaga_id', minhaVaga.id);
+    carregarMinhaVaga(userId);
   }
 
-  function handleAlugarVaga(id: string) {
-    setVagasMercado((atual) =>
-      atual.map((v) => (v.id === id ? { ...v, alugadaPorMim: true, dataInicioISO: new Date().toISOString() } : v))
-    );
+  async function handleAlugarVaga(id: string) {
+    if (!userId) return;
+    const { error } = await supabase.from('alugueis_vaga').insert({ vaga_id: id, locatario_id: userId });
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível alugar a vaga.');
+      return;
+    }
     setVagaParaAlugar(null);
+    carregarVagasMercado(userId);
   }
 
-  function handleEncerrarAluguelMercado(id: string) {
-    setVagasMercado((atual) =>
-      atual.map((v) => (v.id === id ? { ...v, alugadaPorMim: false, dataInicioISO: undefined } : v))
+  async function handleEncerrarAluguelMercado(id: string) {
+    if (!userId) return;
+    const vaga = vagasAlugando.find((v) => v.id === id);
+    if (!vaga?.aluguelId) return;
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { error } = await supabase
+      .from('alugueis_vaga')
+      .update({ ativo: false, data_fim: hoje })
+      .eq('id', vaga.aluguelId);
+    if (error) {
+      Alert.alert('Erro', 'Não foi possível encerrar o aluguel.');
+      return;
+    }
+
+    // Desvincula os veículos próprios que estavam estacionados nessa vaga alugada.
+    await supabase.from('veiculos').update({ vaga_id: null }).eq('vaga_id', id).eq('morador_id', userId);
+
+    carregarVagasMercado(userId);
+    carregarVeiculos(userId);
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.tela}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
+        <View style={[styles.tela, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#2B2823" />
+        </View>
+      </SafeAreaView>
     );
-    // Se algum veículo estava vinculado a essa vaga, desvincula.
-    setVeiculos((atual) => atual.map((v) => (v.vagaId === id ? { ...v, vagaId: null } : v)));
   }
-
-  const vagasDisponiveis = vagasMercado.filter((v) => !v.alugadaPorMim);
-  const vagasQueEstouAlugando = vagasMercado.filter((v) => v.alugadaPorMim);
 
   return (
     <SafeAreaView style={styles.tela}>
@@ -607,7 +802,7 @@ export default function TelaVagasVeiculos() {
             renderItem={({ item }) => (
               <CartaoVeiculo
                 veiculo={item}
-                labelVaga={obterLabelVaga(item.vagaId)}
+                labelVaga={obterLabelVaga(item.vaga_id)}
                 onEditar={() => handleAbrirEdicaoVeiculo(item)}
                 onRemover={() => handleRemoverVeiculo(item.id)}
               />
@@ -626,78 +821,90 @@ export default function TelaVagasVeiculos() {
 
       {abaAtiva === 'minhaVaga' && (
         <ScrollView contentContainerStyle={styles.conteudoScroll} showsVerticalScrollIndicator={false}>
-          <View style={styles.cartaoMinhaVaga}>
-            <Text style={styles.cartaoMinhaVagaNumero}>{minhaVaga.numero}</Text>
-            <Text style={styles.cartaoMinhaVagaLocal}>{minhaVaga.localizacao}</Text>
+          {minhaVaga ? (
+            <View style={styles.cartaoMinhaVaga}>
+              <Text style={styles.cartaoMinhaVagaNumero}>{minhaVaga.numero}</Text>
+              <Text style={styles.cartaoMinhaVagaLocal}>{minhaVaga.localizacao || 'Localização não informada'}</Text>
 
-            {minhaVaga.locatario ? (
-              <>
-                <Selo texto="Alugada" cor="#2F855A" fundo="#E7F4ED" />
-                <View style={styles.locatarioBox}>
-                  <Text style={styles.locatarioTitulo}>Locatário atual</Text>
-                  <Text style={styles.locatarioTexto}>
-                    {minhaVaga.locatario.nome} · {minhaVaga.locatario.apto}
+              {locatarioAtual ? (
+                <>
+                  <Selo texto="Alugada" cor="#2F855A" fundo="#E7F4ED" />
+                  <View style={styles.locatarioBox}>
+                    <Text style={styles.locatarioTitulo}>Locatário atual</Text>
+                    <Text style={styles.locatarioTexto}>
+                      {locatarioAtual.nome}
+                      {locatarioAtual.apto ? ` · ${locatarioAtual.apto}` : ''}
+                    </Text>
+                    <Text style={styles.locatarioValor}>
+                      {minhaVaga.valor_mensal ? formatarMoeda(minhaVaga.valor_mensal) : '—'}/mês
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.botaoSecundario}
+                    onPress={handleEncerrarAluguelMinhaVaga}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.botaoSecundarioTexto}>Encerrar aluguel</Text>
+                  </TouchableOpacity>
+                </>
+              ) : minhaVaga.disponivel_aluguel ? (
+                <>
+                  <Selo texto="Aguardando interessados" cor="#B7791F" fundo="#FBF1DE" />
+                  <View style={styles.locatarioBox}>
+                    <Text style={styles.locatarioTitulo}>Anúncio ativo</Text>
+                    <Text style={styles.locatarioTexto}>{minhaVaga.descricao || 'Sem descrição.'}</Text>
+                    <Text style={styles.locatarioValor}>
+                      {minhaVaga.valor_mensal ? formatarMoeda(minhaVaga.valor_mensal) : '—'}/mês
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.botaoSecundario}
+                    onPress={() => setModalAnuncioVisivel(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.botaoSecundarioTexto}>Editar anúncio</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.botaoTexto} onPress={handleRemoverAnuncio} activeOpacity={0.7}>
+                    <Text style={styles.botaoTextoRemover}>Remover anúncio</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Selo texto="Uso próprio" cor="#8A8377" fundo="#F0ECE5" />
+                  <Text style={styles.textoExplicativo}>
+                    Sua vaga está marcada para uso próprio. Se não for usá-la por um tempo, você pode disponibilizá-la
+                    para aluguel entre os moradores do condomínio.
                   </Text>
-                  <Text style={styles.locatarioTexto}>{minhaVaga.locatario.veiculo}</Text>
-                  <Text style={styles.locatarioValor}>
-                    {minhaVaga.valorMensal ? formatarMoeda(minhaVaga.valorMensal) : '—'}/mês
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.botaoSecundario}
-                  onPress={handleEncerrarAluguelMinhaVaga}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.botaoSecundarioTexto}>Encerrar aluguel</Text>
-                </TouchableOpacity>
-              </>
-            ) : minhaVaga.disponibilizadaParaAluguel ? (
-              <>
-                <Selo texto="Aguardando interessados" cor="#B7791F" fundo="#FBF1DE" />
-                <View style={styles.locatarioBox}>
-                  <Text style={styles.locatarioTitulo}>Anúncio ativo</Text>
-                  <Text style={styles.locatarioTexto}>{minhaVaga.descricao || 'Sem descrição.'}</Text>
-                  <Text style={styles.locatarioValor}>
-                    {minhaVaga.valorMensal ? formatarMoeda(minhaVaga.valorMensal) : '—'}/mês
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.botaoSecundario}
-                  onPress={() => setModalAnuncioVisivel(true)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.botaoSecundarioTexto}>Editar anúncio</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.botaoTexto} onPress={handleRemoverAnuncio} activeOpacity={0.7}>
-                  <Text style={styles.botaoTextoRemover}>Remover anúncio</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Selo texto="Uso próprio" cor="#8A8377" fundo="#F0ECE5" />
-                <Text style={styles.textoExplicativo}>
-                  Sua vaga está marcada para uso próprio. Se não for usá-la por um tempo, você pode disponibilizá-la
-                  para aluguel entre os moradores do condomínio.
-                </Text>
-                <TouchableOpacity
-                  style={styles.botaoEnviar}
-                  onPress={() => setModalAnuncioVisivel(true)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.botaoEnviarTexto}>Disponibilizar para aluguel</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+                  <TouchableOpacity
+                    style={styles.botaoEnviar}
+                    onPress={() => setModalAnuncioVisivel(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.botaoEnviarTexto}>Disponibilizar para aluguel</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          ) : (
+            <View style={styles.cartaoMinhaVaga}>
+              <Text style={styles.cartaoMinhaVagaNumero}>Você ainda não tem vaga cadastrada</Text>
+              <Text style={styles.textoExplicativo}>
+                Cadastre sua vaga para poder disponibilizá-la para aluguel entre os moradores do condomínio.
+              </Text>
+              <TouchableOpacity style={styles.botaoEnviar} onPress={() => setModalAnuncioVisivel(true)} activeOpacity={0.85}>
+                <Text style={styles.botaoEnviarTexto}>Cadastrar minha vaga</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       )}
 
       {abaAtiva === 'alugarVagas' && (
         <ScrollView contentContainerStyle={styles.conteudoScroll} showsVerticalScrollIndicator={false}>
-          {vagasQueEstouAlugando.length > 0 && (
+          {vagasAlugando.length > 0 && (
             <>
               <Text style={styles.secaoTitulo}>Vagas que estou alugando</Text>
-              {vagasQueEstouAlugando.map((vaga) => (
+              {vagasAlugando.map((vaga) => (
                 <CartaoVagaMercado
                   key={vaga.id}
                   vaga={vaga}
