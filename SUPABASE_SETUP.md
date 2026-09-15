@@ -54,6 +54,11 @@ seu editor, copie todo o conteúdo, cole no SQL Editor do Supabase e clique em
 5. [`supabase/migrations/0005_profiles_email.sql`](supabase/migrations/0005_profiles_email.sql) — adiciona
    coluna de e-mail em `profiles` (necessária para a tela de gestão de
    moradores do síndico conseguir mostrar o e-mail de terceiros).
+6. [`supabase/migrations/0006_lint_fixes.sql`](supabase/migrations/0006_lint_fixes.sql) — corrige os
+   avisos (WARN) que o Security Advisor do Supabase aponta depois que você
+   roda os arquivos anteriores (procure por "Security Advisor" no menu
+   lateral do projeto para ver esses avisos). Não muda nenhum comportamento
+   do app, só fecha brechas de segurança teóricas.
 
 Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 (normalmente indica que um passo anterior não rodou por completo).
@@ -61,8 +66,8 @@ Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 ## 3. Pegar a URL e a chave pública do projeto
 
 1. No painel, vá em **Project Settings** (ícone de engrenagem) → **Data API**.
-2. Copie o **Project URL** (algo como `https://xxxxxxxxxxxx.supabase.co`).
-3. Em **Project Settings → API Keys**, copie a chave **`anon` `public`**
+2. Copie o **Project URL** (algo como `https://ieofiwikgaknpshhlfyg.supabase.co/rest/v1/`).
+3. Em **Project Settings → API Keys**, copie a chave **'sb_publishable_liSPiqOZhBo1_GQR4TMDUQ_YbwREOot'**
    (não a `service_role` — essa é secreta e nunca deve ir para o app).
 
 ## 4. Configurar o app

@@ -19,15 +19,23 @@ $$;
 
 create or replace function public.is_sindico()
 returns boolean language sql stable
+set search_path = ''
 as $$ select public.my_role() = 'sindico' $$;
 
 create or replace function public.is_porteiro()
 returns boolean language sql stable
+set search_path = ''
 as $$ select public.my_role() = 'porteiro' $$;
 
 create or replace function public.is_staff()
 returns boolean language sql stable
+set search_path = ''
 as $$ select public.my_role() in ('sindico', 'porteiro') $$;
+
+-- my_role() precisa continuar chamável por "authenticated" (is_sindico(),
+-- is_porteiro() e is_staff() dependem disso dentro das políticas de RLS
+-- abaixo), mas não precisa ser chamável por "anon" (usuário não logado).
+revoke execute on function public.my_role() from anon;
 
 -- ---------------------------------------------------------
 -- PROFILES

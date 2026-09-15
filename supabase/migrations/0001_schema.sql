@@ -26,7 +26,10 @@ create table public.profiles (
 );
 
 create or replace function public.set_updated_at()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
 begin
   new.atualizado_em = now();
   return new;
@@ -61,6 +64,11 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- handle_new_user só deve rodar como gatilho (o trigger acima dispara mesmo
+-- sem EXECUTE concedido) — revogar impede chamada direta via API por
+-- qualquer usuário.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- ---------------------------------------------------------
 -- VISITANTES / CONTROLE DE ACESSO
@@ -273,6 +281,9 @@ $$;
 create trigger trg_votos_enquete_incrementa
   after insert on public.votos_enquete
   for each row execute function public.incrementar_voto_enquete();
+
+-- mesmo raciocínio de handle_new_user: só deve rodar como gatilho.
+revoke execute on function public.incrementar_voto_enquete() from public, anon, authenticated;
 
 -- ---------------------------------------------------------
 -- FINANCEIRO (lançamentos do condomínio + faturas por morador)
