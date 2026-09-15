@@ -19,12 +19,13 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, nome, role, apto, email)
+  insert into public.profiles (id, nome, role, apto, bloco, email)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'nome', split_part(new.email, '@', 1)),
     coalesce(new.raw_user_meta_data->>'role', 'morador'),
     new.raw_user_meta_data->>'apto',
+    new.raw_user_meta_data->>'bloco',
     new.email
   );
   return new;

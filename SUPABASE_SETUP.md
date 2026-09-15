@@ -59,6 +59,15 @@ seu editor, copie todo o conteúdo, cole no SQL Editor do Supabase e clique em
    roda os arquivos anteriores (procure por "Security Advisor" no menu
    lateral do projeto para ver esses avisos). Não muda nenhum comportamento
    do app, só fecha brechas de segurança teóricas.
+7. [`supabase/migrations/0007_signup_bloco.sql`](supabase/migrations/0007_signup_bloco.sql) — faz o
+   cadastro automático de perfil também gravar o prédio/bloco do morador,
+   usado pela tela "Cadastrar morador" do síndico.
+8. [`supabase/migrations/0008_chat_predio.sql`](supabase/migrations/0008_chat_predio.sql) — cria a
+   tabela de mensagens do chat entre moradores do mesmo prédio/bloco, com
+   permissões e atualização em tempo real.
+9. [`supabase/migrations/0009_mensagens_diretas.sql`](supabase/migrations/0009_mensagens_diretas.sql) —
+   cria a tabela de conversas diretas entre morador e síndico/portaria, com
+   permissões e atualização em tempo real.
 
 Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 (normalmente indica que um passo anterior não rodou por completo).

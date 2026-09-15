@@ -20,6 +20,8 @@ const Routes = {
     panico: './panico',
     enquetes: './telaenqueteM',
     configuracoes: './telaconfig',
+    chat: './chatPredio',
+    mensagens: './mensagens',
 } as const;
 
 const menuItems = [
@@ -35,6 +37,8 @@ const menuItems = [
     { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
     { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
     { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a815', route: Routes.enquetes },
+    { id: '15', label: 'Chat do prédio', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.chat },
+    { id: '16', label: 'Mensagens', icon: require('../../assets/images/mensagem.png'), color: '#e8a815', route: Routes.mensagens },
 ];
 
 interface PerfilResumo {

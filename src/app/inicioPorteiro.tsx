@@ -14,6 +14,7 @@ const Routes = {
     reservasHoje: './reservaLocal',//feito
     cameras: './camerasP',//feito
     panico: './botaoPanicoPortaria',//feito
+    mensagens: './mensagens',
 } as const;
 
 const menuItems = [
@@ -27,6 +28,7 @@ const menuItems = [
     { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.reservasHoje },
     { id: '9', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
     { id: '10', label: 'Alerta de pânico', icon: require('../../assets/images/panico.png'), color: '#e8a815', route: Routes.panico },
+    { id: '11', label: 'Mensagens', icon: require('../../assets/images/mensagem.png'), color: '#e49c15', route: Routes.mensagens },
 ];
 
 export default function InicioPorteiro(){

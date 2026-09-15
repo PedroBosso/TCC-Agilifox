@@ -7,7 +7,6 @@ const Routes = {
   inicio: './inicio',
   inicioSindico: './inicioSindico',
   inicioPorteiro: './inicioPorteiro',
-  cadastro: './cadastro',
 } as const;
 
 export default function Index() {
@@ -101,13 +100,9 @@ export default function Index() {
         </Pressable>
       </View>
 
-      {/* Footer com link cadastro */}
       <View style={styles.footerSection}>
         <Text style={styles.footerText}>
-          Não tem uma conta?
-          <Text style={styles.linkText} onPress={() => router.push(Routes.cadastro)}>
-            {' '}Cadastre-se aqui
-          </Text>
+          Seu acesso é criado pelo síndico do condomínio.
         </Text>
       </View>
     </View>
