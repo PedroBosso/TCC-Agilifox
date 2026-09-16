@@ -35,10 +35,10 @@ const menuItems = [
     { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.pagamentos },
     { id: '11', label: 'Gerenciamento de visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
     { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
-    { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets },
+    { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets, iconePequeno: true },
     { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a815', route: Routes.enquetes },
     { id: '15', label: 'Chat do prédio', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.chat },
-    { id: '16', label: 'Mensagens', icon: require('../../assets/images/mensagem.png'), color: '#e8a815', route: Routes.mensagens },
+    { id: '16', label: 'Mensagens', icon: require('../../assets/images/mensagens.png'), color: '#e8a815', route: Routes.mensagens },
 ];
 
 interface PerfilResumo {
@@ -133,7 +133,10 @@ export default function Inicio(){
                            onPress={() => item.route && router.push(item.route)}
                        >
                            <View style={styles.iconWrapper}>
-                               <Image source={item.icon} style={styles.image} />
+                               <Image
+                                   source={item.icon}
+                                   style={[styles.image, 'iconePequeno' in item && item.iconePequeno && styles.imagePequena]}
+                               />
                            </View>
                            <Text style={styles.buttonText}>{item.label}</Text>
                        </Pressable>
@@ -269,6 +272,10 @@ const styles = StyleSheet.create({
         width: '200%',
         height: '200%',
         resizeMode: 'contain',
+    },
+    imagePequena: {
+        width: '110%',
+        height: '110%',
     },
     buttonText: {
         fontSize: 12,

@@ -17,6 +17,7 @@ interface ReservaHoje {
   horario: string;
   morador: string;
   apto: string | null;
+  status: string;
 }
 
 const LABEL_HORARIO: Record<string, string> = {
@@ -47,9 +48,9 @@ export default function ReservasDeHoje() {
 
     const { data, error } = await supabase
       .from("reservas_ambiente")
-      .select("id, horario, morador_id, ambientes(nome, cor)")
+      .select("id, horario, status, morador_id, ambientes(nome, cor)")
       .eq("data", hojeISO)
-      .eq("status", "confirmada");
+      .in("status", ["confirmada", "pendente"]);
 
     if (error) {
       Alert.alert("Erro", "Não foi possível carregar as reservas de hoje.");
@@ -80,6 +81,7 @@ export default function ReservasDeHoje() {
           horario: r.horario,
           morador: morador?.nome ?? "Morador",
           apto: morador?.apto ?? null,
+          status: r.status,
         };
       })
     );
@@ -97,14 +99,26 @@ export default function ReservasDeHoje() {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.titulo}>Reservas de Hoje</Text>
-      <Text style={styles.subtitulo}>Espaços com uso confirmado para hoje:</Text>
+      <Text style={styles.subtitulo}>Espaços reservados para hoje:</Text>
 
       {reservas.length === 0 ? (
         <Text style={styles.vazio}>Nenhuma reserva para hoje.</Text>
       ) : (
         reservas.map((reserva) => (
           <View key={reserva.id} style={[styles.card, { borderLeftColor: reserva.ambienteCor ?? COR_PADRAO }]}>
-            <Text style={styles.cardAmbiente}>{reserva.ambienteNome}</Text>
+            <View style={styles.cardTopo}>
+              <Text style={styles.cardAmbiente}>{reserva.ambienteNome}</Text>
+              <View
+                style={[
+                  styles.selo,
+                  reserva.status === "confirmada" ? styles.seloConfirmada : styles.seloPendente,
+                ]}
+              >
+                <Text style={styles.seloTexto}>
+                  {reserva.status === "confirmada" ? "Confirmada" : "Aguardando síndico"}
+                </Text>
+              </View>
+            </View>
             <Text style={styles.cardHorario}>{LABEL_HORARIO[reserva.horario] ?? reserva.horario}</Text>
             <Text style={styles.cardMorador}>
               {reserva.morador}
@@ -163,11 +177,39 @@ const styles = StyleSheet.create({
     borderLeftWidth: 5,
   },
 
+  cardTopo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+    gap: 8,
+  },
+
   cardAmbiente: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#000",
-    marginBottom: 4,
+    flex: 1,
+  },
+
+  selo: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  seloConfirmada: {
+    backgroundColor: "#E7F4ED",
+  },
+
+  seloPendente: {
+    backgroundColor: "#FBEFD8",
+  },
+
+  seloTexto: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#555",
   },
 
   cardHorario: {

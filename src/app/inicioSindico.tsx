@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 
 const Routes = {
     comunicados: './comunicados',//feito
-    ocorrencias: './ocorrencias',//feito
+    ocorrencias: './ocorrenciasSindico',//feito
     financeiro: './financeiro',//feito
     ambiente: './ambienteS',//feito
     assembleia: './assembleiaSindico',//feito
@@ -20,6 +20,7 @@ const Routes = {
     enquete: './telaenqueteS',//feito
     cadastrarMorador: './cadastrarMorador',
     mensagens: './mensagens',
+    chatdopredio: './chatPredio',//feito
 } as const;
 
 const menuItems = [
@@ -37,8 +38,9 @@ const menuItems = [
     { id: '12', label: 'Contas', icon: require('../../assets/images/contas.png'), color: '#e8a842', route: Routes.contas },
     { id: '13', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
     { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a842', route: Routes.enquete },
-    { id: '15', label: 'Cadastrar morador', icon: require('../../assets/images/moradores.png'), color: '#e49c15', route: Routes.cadastrarMorador },
-    { id: '16', label: 'Mensagens', icon: require('../../assets/images/mensagem.png'), color: '#e8a815', route: Routes.mensagens },
+    { id: '15', label: 'Cadastrar morador', icon: require('../../assets/images/cadmoradores.png'), color: '#e49c15', route: Routes.cadastrarMorador },
+    { id: '16', label: 'Mensagens', icon: require('../../assets/images/mensagens.png'), color: '#e8a815', route: Routes.mensagens },
+    { id: '17', label: 'Chat do prédio', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.chatdopredio },
 ];
 
 export default function InicioSindico(){

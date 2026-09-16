@@ -9,7 +9,7 @@ const Routes = {
     acessos: './acesso',//feito
     veiculos: './estacionamentoPorteiro',//feito
     achadosperdidos: './achados',//feito
-    ocorrencias: './ocorrenciasPorteiro',//feito
+    ocorrencias: './ocorrenciasporteiro',//feito
     comunicados: './comunicados',//feito
     reservasHoje: './reservaLocal',//feito
     cameras: './camerasP',//feito
@@ -19,16 +19,16 @@ const Routes = {
 
 const menuItems = [
     { id: '1', label: 'Encomendas', icon: require('../../assets/images/pacote.png'), color: '#e8a815', route: Routes.encomendas },
-    { id: '2', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e49c15', route: Routes.pets },
+    { id: '2', label: 'Pets do condomínio', icon: require('../../assets/images/animal.png'), color: '#e49c15', route: Routes.pets, iconePequeno: true },
     { id: '3', label: 'Acessos', icon: require('../../assets/images/pessoas.png'), color: '#e8a842', route: Routes.acessos },
     { id: '4', label: 'Consultar veículos', icon: require('../../assets/images/carro.png'), color: '#e49c42', route: Routes.veiculos },
     { id: '5', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e8a815', route: Routes.achadosperdidos },
     { id: '6', label: 'Registrar ocorrência', icon: require('../../assets/images/aviso.png'), color: '#e49c15', route: Routes.ocorrencias },
     { id: '7', label: 'Comunicados', icon: require('../../assets/images/megafone.png'), color: '#e8a842', route: Routes.comunicados },
     { id: '8', label: 'Reservas de hoje', icon: require('../../assets/images/calendario.png'), color: '#e8a842', route: Routes.reservasHoje },
-    { id: '9', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras },
+    { id: '9', label: 'Câmeras de segurança', icon: require('../../assets/images/camera.png'), color: '#e49c15', route: Routes.cameras, iconePequeno: true },
     { id: '10', label: 'Alerta de pânico', icon: require('../../assets/images/panico.png'), color: '#e8a815', route: Routes.panico },
-    { id: '11', label: 'Mensagens', icon: require('../../assets/images/mensagem.png'), color: '#e49c15', route: Routes.mensagens },
+    { id: '11', label: 'Mensagens', icon: require('../../assets/images/mensagens.png'), color: '#e49c15', route: Routes.mensagens },
 ];
 
 export default function InicioPorteiro(){
@@ -92,7 +92,10 @@ export default function InicioPorteiro(){
                            onPress={() => item.route && router.push(item.route)}
                        >
                            <View style={styles.iconWrapper}>
-                               <Image source={item.icon} style={styles.image} />
+                               <Image
+                                   source={item.icon}
+                                   style={[styles.image, 'iconePequeno' in item && item.iconePequeno && styles.imagePequena]}
+                               />
                            </View>
                            <Text style={styles.buttonText}>{item.label}</Text>
                        </Pressable>
@@ -219,6 +222,10 @@ const styles = StyleSheet.create({
         width: '200%',
         height: '200%',
         resizeMode: 'contain',
+    },
+    imagePequena: {
+        width: '110%',
+        height: '110%',
     },
     buttonText: {
         fontSize: 12,

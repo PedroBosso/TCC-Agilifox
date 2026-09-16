@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface Mensagem {
@@ -14,6 +14,8 @@ interface Mensagem {
 export default function ChatPredio() {
   const [userId, setUserId] = useState<string | null>(null);
   const [meuBloco, setMeuBloco] = useState<string | null>(null);
+  const [ehSindico, setEhSindico] = useState(false);
+  const [blocosDisponiveis, setBlocosDisponiveis] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState('');
@@ -55,20 +57,40 @@ export default function ChatPredio() {
 
     const { data: perfil } = await supabase
       .from('profiles')
-      .select('bloco')
+      .select('bloco, role')
       .eq('id', user.id)
       .maybeSingle();
+
+    if (perfil?.role === 'sindico') {
+      setEhSindico(true);
+
+      const { data: perfis } = await supabase
+        .from('profiles')
+        .select('bloco')
+        .not('bloco', 'is', null);
+
+      const blocos = Array.from(new Set((perfis ?? []).map((p: any) => p.bloco))).sort();
+      setBlocosDisponiveis(blocos);
+      setCarregando(false);
+      return;
+    }
 
     if (!perfil?.bloco) {
       setCarregando(false);
       return;
     }
-    setMeuBloco(perfil.bloco);
+
+    await abrirBloco(perfil.bloco);
+  }
+
+  async function abrirBloco(bloco: string) {
+    setCarregando(true);
+    setMeuBloco(bloco);
 
     const { data, error } = await supabase
       .from('mensagens_predio')
       .select('id, texto, criado_em, autor_id, profiles(nome)')
-      .eq('bloco', perfil.bloco)
+      .eq('bloco', bloco)
       .order('criado_em', { ascending: true });
 
     if (error) {
@@ -136,6 +158,34 @@ export default function ChatPredio() {
     );
   }
 
+  if (!meuBloco && ehSindico) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()}>
+            <Text style={styles.voltar}>Voltar</Text>
+          </Pressable>
+          <Text style={styles.titulo}>Chat do prédio</Text>
+          <Text style={styles.subtitulo}>Escolha o bloco que deseja acompanhar</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.listaBlocos}>
+          {blocosDisponiveis.length === 0 ? (
+            <Text style={styles.semAcessoTexto}>
+              Nenhum bloco cadastrado ainda. Cadastre moradores com prédio/bloco para liberar os chats.
+            </Text>
+          ) : (
+            blocosDisponiveis.map((bloco) => (
+              <Pressable key={bloco} style={styles.blocoCard} onPress={() => abrirBloco(bloco)}>
+                <Text style={styles.blocoNome}>{bloco}</Text>
+              </Pressable>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (!meuBloco) {
     return (
       <View style={[styles.container, styles.centralizado]}>
@@ -153,8 +203,8 @@ export default function ChatPredio() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.voltar}>Voltar</Text>
+          <Pressable onPress={() => (ehSindico ? setMeuBloco(null) : router.back())}>
+            <Text style={styles.voltar}>{ehSindico ? 'Trocar bloco' : 'Voltar'}</Text>
           </Pressable>
           <Text style={styles.titulo}>Chat do prédio</Text>
           <Text style={styles.subtitulo}>{meuBloco}</Text>
@@ -235,6 +285,25 @@ const styles = StyleSheet.create({
   listaConteudo: {
     padding: 16,
     gap: 8,
+  },
+  listaBlocos: {
+    padding: 20,
+    gap: 12,
+  },
+  blocoCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  blocoNome: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
   },
   bolha: {
     maxWidth: '78%',

@@ -1,9 +1,20 @@
 // Tela para o porteiro registrar a chegada de encomendas aos moradores — dados vão para o Supabase (tabela encomendas).
 
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+
+interface EncomendaPendente {
+    id: string;
+    apartamento: string;
+    moradorNome: string;
+    remetente: string | null;
+    transportadora: string | null;
+    codigoEntrega: string | null;
+    observacao: string | null;
+    status: string;
+}
 
 export default function CadastrarEncomendaPorteiro() {
     const [morador, setMorador] = useState('');
@@ -12,6 +23,59 @@ export default function CadastrarEncomendaPorteiro() {
     const [transportadora, setTransportadora] = useState('');
     const [observacao, setObservacao] = useState('');
     const [enviando, setEnviando] = useState(false);
+    const [pendentes, setPendentes] = useState<EncomendaPendente[]>([]);
+
+    useEffect(() => {
+        carregarPendentes();
+    }, []);
+
+    async function carregarPendentes() {
+        const { data, error } = await supabase
+            .from('encomendas')
+            .select('id, apartamento, morador_id, morador_nome, remetente, transportadora, codigo_entrega, observacao, status')
+            .in('status', ['aguardando', 'na_portaria'])
+            .order('data_chegada', { ascending: false });
+
+        if (error) return;
+
+        const linhas = data ?? [];
+        const moradorIds = Array.from(new Set(linhas.map((e: any) => e.morador_id).filter(Boolean)));
+        let nomePorId = new Map<string, string>();
+
+        if (moradorIds.length > 0) {
+            const { data: perfis } = await supabase
+                .from('profiles')
+                .select('id, nome')
+                .in('id', moradorIds);
+            nomePorId = new Map((perfis ?? []).map((p) => [p.id, p.nome]));
+        }
+
+        setPendentes(
+            linhas.map((e: any) => ({
+                id: e.id,
+                apartamento: e.apartamento,
+                moradorNome: e.morador_nome ?? nomePorId.get(e.morador_id) ?? 'Morador',
+                remetente: e.remetente,
+                transportadora: e.transportadora,
+                codigoEntrega: e.codigo_entrega,
+                observacao: e.observacao,
+                status: e.status,
+            }))
+        );
+    }
+
+    async function marcarRetirada(id: string) {
+        const { error } = await supabase
+            .from('encomendas')
+            .update({ status: 'retirada', data_retirada: new Date().toISOString() })
+            .eq('id', id);
+
+        if (error) {
+            Alert.alert('Erro', 'Não foi possível marcar como retirada.');
+            return;
+        }
+        carregarPendentes();
+    }
 
     const handleCadastrar = async () => {
         if (!morador || !apartamento) {
@@ -48,6 +112,7 @@ export default function CadastrarEncomendaPorteiro() {
         setCodigo('');
         setTransportadora('');
         setObservacao('');
+        carregarPendentes();
     };
 
     return (
@@ -69,9 +134,59 @@ export default function CadastrarEncomendaPorteiro() {
                 showsVerticalScrollIndicator={true}
             >
                 <View style={styles.welcomeSection}>
-                    <Text style={styles.welcomeText}>Nova Encomenda</Text>
-                    <Text style={styles.welcomeSubtext}>Registre a chegada de um pacote para notificar o morador.</Text>
+                    <Text style={styles.welcomeText}>Encomendas</Text>
+                    <Text style={styles.welcomeSubtext}>Acompanhe o que os moradores avisaram que está a caminho e registre a chegada de novos pacotes.</Text>
                 </View>
+
+                {pendentes.length > 0 && (
+                    <View style={styles.listaSecao}>
+                        <Text style={styles.listaTitulo}>Em aberto ({pendentes.length})</Text>
+
+                        {pendentes.map((item) => (
+                            <View key={item.id} style={styles.itemCard}>
+                                <View style={styles.itemTopo}>
+                                    <Text style={styles.itemApto}>{item.apartamento}</Text>
+                                    <View style={[
+                                        styles.itemSelo,
+                                        item.status === 'aguardando' ? styles.seloAguardando : styles.seloNaPortaria
+                                    ]}>
+                                        <Text style={styles.itemSeloTexto}>
+                                            {item.status === 'aguardando' ? 'Avisada pelo morador' : 'Na portaria'}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <Text style={styles.itemMorador}>{item.moradorNome}</Text>
+
+                                {(item.remetente || item.transportadora) && (
+                                    <Text style={styles.itemDetalhe}>
+                                        {item.remetente ?? item.transportadora}
+                                    </Text>
+                                )}
+
+                                {item.observacao && (
+                                    <Text style={styles.itemDetalhe}>{item.observacao}</Text>
+                                )}
+
+                                {item.codigoEntrega && (
+                                    <View style={styles.codigoBox}>
+                                        <Text style={styles.codigoLabel}>Código de entrega do morador</Text>
+                                        <Text style={styles.codigoValor}>{item.codigoEntrega}</Text>
+                                    </View>
+                                )}
+
+                                <Pressable
+                                    style={({ pressed }) => [styles.botaoRetirada, pressed && { opacity: 0.85 }]}
+                                    onPress={() => marcarRetirada(item.id)}
+                                >
+                                    <Text style={styles.botaoRetiradaTexto}>Marcar como retirada</Text>
+                                </Pressable>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                <Text style={styles.formTitulo}>Cadastrar nova encomenda</Text>
 
                 {/* Formulário de Cadastro */}
                 <View style={styles.formContainer}>
@@ -211,6 +326,106 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666666',
         fontWeight: '500',
+    },
+    listaSecao: {
+        marginBottom: 24,
+        gap: 12,
+    },
+    listaTitulo: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
+        paddingHorizontal: 5,
+    },
+    itemCard: {
+        backgroundColor: '#ffffff',
+        borderRadius: 14,
+        padding: 16,
+        gap: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    itemTopo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+    },
+    itemApto: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
+        flex: 1,
+    },
+    itemSelo: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    seloAguardando: {
+        backgroundColor: '#FBEFD8',
+    },
+    seloNaPortaria: {
+        backgroundColor: '#E7F4ED',
+    },
+    itemSeloTexto: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#555555',
+    },
+    itemMorador: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333333',
+    },
+    itemDetalhe: {
+        fontSize: 13,
+        color: '#666666',
+    },
+    codigoBox: {
+        backgroundColor: '#f9f6f0',
+        borderWidth: 1,
+        borderColor: '#e2d4be',
+        borderRadius: 10,
+        padding: 10,
+        marginTop: 6,
+    },
+    codigoLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#8A8377',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    codigoValor: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1a1a1a',
+        letterSpacing: 1,
+        marginTop: 2,
+    },
+    botaoRetirada: {
+        marginTop: 10,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: '#e49c15',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    botaoRetiradaTexto: {
+        color: '#ffffff',
+        fontWeight: '700',
+        fontSize: 13,
+    },
+    formTitulo: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1a1a1a',
+        paddingHorizontal: 5,
+        marginBottom: 12,
     },
     formContainer: {
         backgroundColor: '#ffffff',

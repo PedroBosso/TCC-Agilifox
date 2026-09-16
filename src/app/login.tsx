@@ -32,7 +32,11 @@ export default function Index() {
 
     if (error || !data.user) {
       setCarregando(false);
-      setErro('E-mail ou senha incorretos.');
+      setErro(
+        error?.code === 'email_not_confirmed'
+          ? 'Confirme o e-mail antes de entrar. Verifique a caixa de entrada.'
+          : 'E-mail ou senha incorretos.'
+      );
       return;
     }
 
