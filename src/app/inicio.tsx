@@ -52,23 +52,25 @@ export default function Inicio(){
     const [popupVisivel, setPopupVisivel] = useState(false);
 
     useEffect(() => {
-        carregarPerfil();
+        let ativo = true;
+
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !ativo) return;
+
+            const { data } = await supabase
+                .from('profiles')
+                .select('nome, apto, foto_url')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (data && ativo) {
+                setPerfil({ nome: data.nome, apto: data.apto, fotoUrl: data.foto_url });
+            }
+        })();
+
+        return () => { ativo = false; };
     }, []);
-
-    async function carregarPerfil() {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data } = await supabase
-            .from('profiles')
-            .select('nome, apto, foto_url')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (data) {
-            setPerfil({ nome: data.nome, apto: data.apto, fotoUrl: data.foto_url });
-        }
-    }
 
     return (
         <View style={styles.container}>
