@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MenuPerfilPopup from '../components/MenuPerfilPopup';
 import { supabase } from '../lib/supabase';
 
 const Routes = {
@@ -15,6 +16,7 @@ const Routes = {
     cameras: './camerasP',//feito
     panico: './botaoPanicoPortaria',//feito
     mensagens: './mensagens',
+    configuracoes: './telaconfig',
 } as const;
 
 const menuItems = [
@@ -33,23 +35,30 @@ const menuItems = [
 
 export default function InicioPorteiro(){
     const [nome, setNome] = useState<string | null>(null);
+    const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+    const [popupVisivel, setPopupVisivel] = useState(false);
 
     useEffect(() => {
-        carregarPerfil();
+        let ativo = true;
+
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user || !ativo) return;
+
+            const { data } = await supabase
+                .from('profiles')
+                .select('nome, foto_url')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (data && ativo) {
+                setNome(data.nome);
+                setFotoUrl(data.foto_url);
+            }
+        })();
+
+        return () => { ativo = false; };
     }, []);
-
-    async function carregarPerfil() {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data } = await supabase
-            .from('profiles')
-            .select('nome')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (data) setNome(data.nome);
-    }
 
     return (
         <View style={styles.container}>
@@ -61,9 +70,15 @@ export default function InicioPorteiro(){
                </View>
                <View style={styles.iconGroup}>
                    <Image style={styles.int} source={require('../../assets/images/int.png')} />
-                   <View style={styles.userIconWrapper}>
-                       <Image style={styles.userIcon} source={require('../../assets/images/user.png')} />
-                   </View>
+                   <TouchableOpacity onPress={() => setPopupVisivel(true)} activeOpacity={0.8}>
+                       <View style={styles.userIconWrapper}>
+                           {fotoUrl ? (
+                               <Image source={{ uri: fotoUrl }} style={styles.userFoto} />
+                           ) : (
+                               <Image style={styles.userIcon} source={require('../../assets/images/user.png')} />
+                           )}
+                       </View>
+                   </TouchableOpacity>
                </View>
            </View>
 
@@ -105,6 +120,14 @@ export default function InicioPorteiro(){
                {/* Espaço extra ao final para padding */}
                <View style={styles.bottomPadding} />
            </ScrollView>
+
+           <MenuPerfilPopup
+               visivel={popupVisivel}
+               onFechar={() => setPopupVisivel(false)}
+               nome={nome ?? 'Porteiro(a)'}
+               fotoUrl={fotoUrl}
+               rotaConfiguracoes={Routes.configuracoes}
+           />
         </View>
     )
 }
@@ -159,6 +182,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#e49c15',
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
         shadowColor: '#e49c15',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
@@ -168,6 +192,10 @@ const styles = StyleSheet.create({
     userIcon: {
         width: '150%',
         height: '150%',
+    },
+    userFoto: {
+        width: '100%',
+        height: '100%',
     },
     welcomeSection: {
         marginBottom: 24,
