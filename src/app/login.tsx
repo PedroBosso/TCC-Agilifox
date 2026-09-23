@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 const Routes = {
@@ -58,7 +58,16 @@ export default function Index() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollConteudo}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       {/* Background decorativo */}
       <View style={styles.decorativeCircle} />
 
@@ -109,7 +118,8 @@ export default function Index() {
           Seu acesso é criado pelo síndico do condomínio.
         </Text>
       </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -117,6 +127,9 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: '#f3e9d7',
         flex: 1,
+    },
+    scrollConteudo: {
+        flexGrow: 1,
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingVertical: 40,

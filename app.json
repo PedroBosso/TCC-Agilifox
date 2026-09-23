@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.tccagilifox.app",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#F5E9D7",
         "foregroundImage": "./assets/images/agilifox-adaptive.png"
