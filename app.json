@@ -45,6 +45,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d97dd126-886e-4654-afc4-dded3a2ce33d"
+      }
+    },
+    "owner": "pedro_bosso"
   }
 }
