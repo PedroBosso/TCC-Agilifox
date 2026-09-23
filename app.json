@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "TCC-Agilifox",
+    "name": "Agilifox",
     "slug": "TCC-Agilifox",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/agilifox-icon.png",
     "scheme": "tccagilifox",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -13,8 +13,8 @@
     "android": {
       "package": "com.tccagilifox.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundColor": "#F5E9D7",
+        "foregroundImage": "./assets/images/agilifox-adaptive.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -27,10 +27,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/agilifox-icon.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#F5E9D7",
           "dark": {
             "backgroundColor": "#000000"
           }
