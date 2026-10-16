@@ -6,7 +6,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -15,6 +14,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -177,6 +178,11 @@ function mapPerfilParaMorador(perfil: PerfilMoradorDb): Morador {
   };
 }
 
+function textoUnidade(morador: Morador): string {
+  const partes = [morador.apto && `Apto ${morador.apto}`, morador.bloco].filter(Boolean);
+  return partes.length > 0 ? partes.join(' · ') : 'Unidade não informada';
+}
+
 // ---------- Subcomponentes ----------
 
 function Chip({ label, ativo, onPress }: { label: string; ativo: boolean; onPress: () => void }) {
@@ -222,7 +228,7 @@ function CartaoMorador({ morador, onPress }: CartaoMoradorProps) {
       <View style={styles.cartaoInfo}>
         <Text style={styles.cartaoNome}>{morador.nome}</Text>
         <Text style={styles.cartaoDetalhe}>
-          Apto {morador.apto} - Bloco {morador.bloco} · {idadeTexto(morador.dataNascimentoISO)}
+          {textoUnidade(morador)} · {idadeTexto(morador.dataNascimentoISO)}
         </Text>
         <Text style={styles.cartaoCpf}>CPF {mascararCpf(morador.cpf)}</Text>
       </View>
@@ -303,7 +309,7 @@ function ModalDetalhe({ morador, onFechar, onEditar, onAlternarStatus, onRemover
               <View style={styles.detalheBox}>
                 <LinhaInfo label="Idade" valor={idadeTexto(morador.dataNascimentoISO)} />
                 <LinhaInfo label="Data de nascimento" valor={formatarDataCurta(morador.dataNascimentoISO)} />
-                <LinhaInfo label="Apartamento" valor={`${morador.apto} - Bloco ${morador.bloco}`} />
+                <LinhaInfo label="Apartamento" valor={textoUnidade(morador)} />
                 <LinhaInfo label="Telefone" valor={morador.telefone} />
                 <LinhaInfo label="E-mail" valor={morador.email} />
 
@@ -354,6 +360,7 @@ function ModalEditar({ morador, onFechar, onProsseguir }: ModalEditarProps) {
   const [bloco, setBloco] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
+  const [blocos, setBlocos] = useState<string[]>([]);
 
   React.useEffect(() => {
     if (morador) {
@@ -363,6 +370,12 @@ function ModalEditar({ morador, onFechar, onProsseguir }: ModalEditarProps) {
       setBloco(morador.bloco);
       setTelefone(morador.telefone);
       setEmail(morador.email);
+
+      supabase
+        .from('blocos')
+        .select('nome')
+        .order('nome')
+        .then(({ data }) => setBlocos((data ?? []).map((b) => b.nome)));
     }
   }, [morador]);
 
@@ -425,15 +438,14 @@ function ModalEditar({ morador, onFechar, onProsseguir }: ModalEditarProps) {
               keyboardType="numeric"
             />
 
-            <View style={styles.linhaDupla}>
-              <View style={styles.campoMetade}>
-                <Text style={styles.campoLabel}>Apartamento</Text>
-                <TextInput style={styles.input} value={apto} onChangeText={setApto} placeholder="204" placeholderTextColor="#A8A199" />
-              </View>
-              <View style={styles.campoMetade}>
-                <Text style={styles.campoLabel}>Bloco</Text>
-                <TextInput style={styles.input} value={bloco} onChangeText={setBloco} placeholder="A" placeholderTextColor="#A8A199" />
-              </View>
+            <Text style={styles.campoLabel}>Apartamento</Text>
+            <TextInput style={styles.input} value={apto} onChangeText={setApto} placeholder="204" placeholderTextColor="#A8A199" />
+
+            <Text style={styles.campoLabel}>Bloco</Text>
+            <View style={styles.blocosLinha}>
+              {blocos.map((b) => (
+                <Chip key={b} label={b} ativo={bloco === b} onPress={() => setBloco(b)} />
+              ))}
             </View>
 
             <Text style={styles.campoLabel}>Telefone</Text>
@@ -684,7 +696,7 @@ export default function TelaMoradoresSindico() {
         nome: dadosParaConfirmar.nome,
         data_nascimento: dadosParaConfirmar.dataNascimentoISO || null,
         apto: dadosParaConfirmar.apto,
-        bloco: dadosParaConfirmar.bloco,
+        bloco: dadosParaConfirmar.bloco || null,
         telefone: dadosParaConfirmar.telefone,
         email: dadosParaConfirmar.email,
       })
@@ -750,7 +762,7 @@ export default function TelaMoradoresSindico() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -760,12 +772,14 @@ export default function TelaMoradoresSindico() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Moradores</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Moradores</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.buscaContainer}>
@@ -1131,6 +1145,11 @@ const styles = StyleSheet.create({
   linhaDupla: {
     flexDirection: 'row',
     gap: 12,
+  },
+  blocosLinha: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   campoMetade: {
     flex: 1,

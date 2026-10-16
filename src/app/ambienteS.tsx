@@ -6,7 +6,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -15,6 +14,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -596,7 +597,7 @@ export default function TelaGerenciarAmbientesSindico() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.listaVaziaContainer}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -606,14 +607,14 @@ export default function TelaGerenciarAmbientesSindico() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <View>
+        <TituloComVoltar>
           <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
           <Text style={styles.cabecalhoTitulo}>Ambientes</Text>
-        </View>
+        </TituloComVoltar>
         {totalPendentes > 0 && (
           <View style={styles.contadorPendentes}>
             <Text style={styles.contadorPendentesTexto}>

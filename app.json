@@ -41,7 +41,16 @@
       "expo-web-browser",
       "expo-sqlite",
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Agilifox usa a câmera para ler o QR code dos visitantes e para tirar fotos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

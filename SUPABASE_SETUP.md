@@ -68,6 +68,11 @@ seu editor, copie todo o conteúdo, cole no SQL Editor do Supabase e clique em
 9. [`supabase/migrations/0009_mensagens_diretas.sql`](supabase/migrations/0009_mensagens_diretas.sql) —
    cria a tabela de conversas diretas entre morador e síndico/portaria, com
    permissões e atualização em tempo real.
+10. [`supabase/migrations/0010_chat_predio_sindico.sql`](supabase/migrations/0010_chat_predio_sindico.sql) —
+    libera o síndico para ler e escrever no chat de qualquer bloco.
+11. [`supabase/migrations/0011_presencas_blocos_seguranca.sql`](supabase/migrations/0011_presencas_blocos_seguranca.sql) —
+    lista oficial de blocos, lista de presença das assembleias e trava que
+    impede o usuário de alterar o próprio papel ou bloco pela API.
 
 Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 (normalmente indica que um passo anterior não rodou por completo).

@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -12,6 +11,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -278,11 +279,13 @@ export default function TelaPrestacaoContas() {
 
   if (!mesAtual || !resumo) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.cabecalho}>
-          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-          <Text style={styles.cabecalhoTitulo}>Prestação de Contas</Text>
+          <TituloComVoltar>
+            <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+            <Text style={styles.cabecalhoTitulo}>Prestação de Contas</Text>
+          </TituloComVoltar>
         </View>
         <Text style={{ paddingHorizontal: 20, color: '#8A8377', fontSize: 13 }}>
           Nenhum lançamento financeiro registrado ainda.
@@ -292,12 +295,14 @@ export default function TelaPrestacaoContas() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Prestação de Contas</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Prestação de Contas</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.seletorMes}>

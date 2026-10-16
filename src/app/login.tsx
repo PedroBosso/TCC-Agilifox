@@ -49,11 +49,11 @@ export default function Index() {
     setCarregando(false);
 
     if (perfil?.role === 'sindico') {
-      router.push(Routes.inicioSindico);
+      router.replace(Routes.inicioSindico);
     } else if (perfil?.role === 'porteiro') {
-      router.push(Routes.inicioPorteiro);
+      router.replace(Routes.inicioPorteiro);
     } else {
-      router.push(Routes.inicio);
+      router.replace(Routes.inicio);
     }
   }
 

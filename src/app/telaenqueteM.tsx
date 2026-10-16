@@ -5,13 +5,14 @@ import {
   Alert,
   FlatList,
   Modal,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 //  Tipos 
@@ -310,7 +311,7 @@ export default function TelaEnquetesMorador() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.listaVaziaContainer}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -320,12 +321,14 @@ export default function TelaEnquetesMorador() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Enquetes</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Enquetes</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>

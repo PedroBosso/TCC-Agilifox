@@ -1,8 +1,10 @@
-// Tela do porteiro para monitorar entradas/saídas e liberar acessos manualmente.
+// Tela do porteiro para monitorar entradas/saídas, ler o QR code dos visitantes e liberar acessos manualmente.
 
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 type TipoPessoa = 'morador' | 'visitante' | 'entregador';
@@ -38,12 +40,7 @@ export default function ControleAcesso() {
     const [registros, setRegistros] = useState<RegistroAcesso[]>([]);
     const [carregando, setCarregando] = useState(true);
 
-    useEffect(() => {
-        carregarRegistros();
-    }, []);
-
-    async function carregarRegistros() {
-        setCarregando(true);
+    const carregarRegistros = useCallback(async () => {
         const { data, error } = await supabase
             .from('registros_acesso')
             .select('id, tipo_pessoa, nome, apartamento, direcao, status, registrado_em')
@@ -55,7 +52,14 @@ export default function ControleAcesso() {
             setRegistros(data ?? []);
         }
         setCarregando(false);
-    }
+    }, []);
+
+    // Recarrega sempre que a tela volta a aparecer, por exemplo depois de liberar um visitante pelo QR code.
+    useFocusEffect(
+        useCallback(() => {
+            carregarRegistros();
+        }, [carregarRegistros])
+    );
 
     // Libera manualmente um acesso pendente
     const handleLiberar = async (id: string) => {
@@ -96,13 +100,10 @@ export default function ControleAcesso() {
         <View style={styles.container}>
             {/* Header fixo */}
             <View style={styles.header}>
-                <View>
+                <TituloComVoltar>
                     <Text style={styles.headerLabel}>Portaria</Text>
                     <Text style={styles.headerText}>Controle de Acesso</Text>
-                </View>
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>Voltar</Text>
-                </Pressable>
+                </TituloComVoltar>
             </View>
 
             {/* Conteúdo scrollável */}
@@ -114,6 +115,14 @@ export default function ControleAcesso() {
                     <Text style={styles.welcomeText}>Entradas e Saídas</Text>
                     <Text style={styles.welcomeSubtext}>Monitore o fluxo e libere acessos manualmente em caso de problemas.</Text>
                 </View>
+
+                <Pressable
+                    style={({ pressed }) => [styles.btnLerQr, pressed && { opacity: 0.85 }]}
+                    onPress={() => router.push('./lerQrVisitante')}
+                >
+                    <Ionicons name="qr-code-outline" size={22} color="#ffffff" />
+                    <Text style={styles.btnLerQrText}>Ler QR code do visitante</Text>
+                </Pressable>
 
                 {/* Lista de Registros */}
                 <View style={styles.listContainer}>
@@ -204,17 +213,6 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#1a1a1a',
     },
-    backButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        backgroundColor: '#e49c15',
-        borderRadius: 8,
-    },
-    backButtonText: {
-        color: '#ffffff',
-        fontWeight: '700',
-        fontSize: 12,
-    },
     welcomeSection: {
         marginBottom: 24,
         paddingHorizontal: 5,
@@ -229,6 +227,21 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666666',
         fontWeight: '500',
+    },
+    btnLerQr: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: '#e49c15',
+        borderRadius: 14,
+        paddingVertical: 16,
+        marginBottom: 20,
+    },
+    btnLerQrText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '700',
     },
     listContainer: {
         width: '100%',

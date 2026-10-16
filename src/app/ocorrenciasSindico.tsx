@@ -1,6 +1,5 @@
 // Tela de Ocorrências do síndico — vê todas as ocorrências (moradores e portaria) e altera o status.
 
-import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 type OcorrenciaStatus = 'aberta' | 'andamento' | 'resolvida';
@@ -167,15 +167,14 @@ export default function OcorrenciasSindico() {
   return (
     <View style={styles.tela}>
       <View style={styles.cabecalho}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.voltar}>Voltar</Text>
-        </Pressable>
-        <Text style={styles.cabecalhoTitulo}>Ocorrências</Text>
-        <Text style={styles.cabecalhoSubtitulo}>
-          {totalAbertas > 0
-            ? `${totalAbertas} aberta${totalAbertas > 1 ? 's' : ''} aguardando providência`
-            : 'Nenhuma ocorrência aberta'}
-        </Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoTitulo}>Ocorrências</Text>
+          <Text style={styles.cabecalhoSubtitulo}>
+            {totalAbertas > 0
+              ? `${totalAbertas} aberta${totalAbertas > 1 ? 's' : ''} aguardando providência`
+              : 'Nenhuma ocorrência aberta'}
+          </Text>
+        </TituloComVoltar>
       </View>
 
       <ScrollView
@@ -289,12 +288,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 12,
-  },
-  voltar: {
-    fontSize: 14,
-    color: '#e49c15',
-    fontWeight: '700',
-    marginBottom: 12,
   },
   cabecalhoTitulo: {
     fontSize: 26,

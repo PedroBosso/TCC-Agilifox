@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import * as Sharing from 'expo-sharing';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { captureRef } from 'react-native-view-shot';
+import BotaoVoltar from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 const colors = {
@@ -89,18 +92,28 @@ function statusColor(status: VisitStatus) {
   return colors.gray;
 }
 
+// Conteúdo do QR code: a portaria lê o id da autorização e confere no banco se ela ainda vale.
+function codigoQr(visitor: Visitor): string {
+  return `agilifox-visita:${visitor.id}`;
+}
+
 export default function VisitantesAutorizados() {
   const [tab, setTab] = useState<'autorizados' | 'historico'>('autorizados');
   const [visitantes, setVisitantes] = useState<Visitor[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [apto, setApto] = useState<string | null>(null);
+  const [bloco, setBloco] = useState<string | null>(null);
 
   const [modalVisivel, setModalVisivel] = useState(false);
   const [novoNome, setNovoNome] = useState('');
   const [novoDetalhe, setNovoDetalhe] = useState('');
   const [novoRecorrente, setNovoRecorrente] = useState(false);
   const [salvando, setSalvando] = useState(false);
+
+  const [visitanteQr, setVisitanteQr] = useState<Visitor | null>(null);
+  const [compartilhando, setCompartilhando] = useState(false);
+  const cartaoQrRef = useRef<View>(null);
 
   useEffect(() => {
     carregarDados();
@@ -122,11 +135,12 @@ export default function VisitantesAutorizados() {
 
     const { data: perfil } = await supabase
       .from('profiles')
-      .select('apto')
+      .select('apto, bloco')
       .eq('id', user.id)
       .maybeSingle();
 
     setApto(perfil?.apto ?? null);
+    setBloco(perfil?.bloco ?? null);
 
     const { data, error } = await supabase
       .from('autorizacoes_visita')
@@ -169,6 +183,58 @@ export default function VisitantesAutorizados() {
     carregarDados();
   }
 
+  // Transforma o cartão do QR code em imagem e abre o compartilhamento (WhatsApp, e-mail etc.).
+  async function handleCompartilharQr() {
+    if (!visitanteQr) return;
+
+    setCompartilhando(true);
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('Aviso', 'O compartilhamento não está disponível neste aparelho.');
+        return;
+      }
+      const imagem = await captureRef(cartaoQrRef, { format: 'png', quality: 1 });
+      await Sharing.shareAsync(imagem, {
+        mimeType: 'image/png',
+        dialogTitle: `QR code de ${visitanteQr.nome_visitante}`,
+      });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível compartilhar o QR code.');
+    } finally {
+      setCompartilhando(false);
+    }
+  }
+
+  function handleCancelarAutorizacao() {
+    if (!visitanteQr) return;
+    const autorizacao = visitanteQr;
+
+    Alert.alert(
+      'Cancelar autorização',
+      `O QR code de ${autorizacao.nome_visitante} vai parar de funcionar na portaria.`,
+      [
+        { text: 'Voltar', style: 'cancel' },
+        {
+          text: 'Cancelar autorização',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('autorizacoes_visita')
+              .update({ status: 'cancelado' })
+              .eq('id', autorizacao.id);
+
+            if (error) {
+              Alert.alert('Erro', 'Não foi possível cancelar a autorização.');
+              return;
+            }
+            setVisitanteQr(null);
+            carregarDados();
+          },
+        },
+      ]
+    );
+  }
+
   const visitantesFiltrados = visitantes.filter((v) =>
     tab === 'autorizados' ? v.status === 'ativo' || v.status === 'agendado' : v.status === 'expirado' || v.status === 'cancelado'
   );
@@ -184,9 +250,7 @@ export default function VisitantesAutorizados() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable style={styles.iconButton} onPress={() => router.push('./inicio')}>
-          <Ionicons name="chevron-back" size={22} color={colors.navy} />
-        </Pressable>
+        <BotaoVoltar />
         <Pressable style={styles.iconButton}>
           <Ionicons name="search" size={22} color={colors.navy} />
         </Pressable>
@@ -217,40 +281,49 @@ export default function VisitantesAutorizados() {
           </Text>
         )}
 
-        {visitantesFiltrados.map((visitor) => (
-          <View
-            key={visitor.id}
-            style={[styles.card, (visitor.status === 'expirado' || visitor.status === 'cancelado') && styles.cardExpired]}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {visitor.nome_visitante
-                  .split(' ')
-                  .slice(0, 2)
-                  .map((part) => part[0])
-                  .join('')}
-              </Text>
-            </View>
+        {tab === 'autorizados' && visitantesFiltrados.length > 0 && (
+          <Text style={styles.dica}>Toque em um visitante para ver e enviar o QR code de entrada.</Text>
+        )}
 
-            <View style={styles.cardContent}>
-              <Text style={styles.unitText}>APTO {visitor.apartamento}</Text>
-              <Text style={styles.nameText}>{visitor.nome_visitante}</Text>
-              {!!visitor.detalhe && <Text style={styles.detailText}>{visitor.detalhe}</Text>}
-
-              <View style={styles.statusRow}>
-                <StatusIcon status={visitor.status} />
-                <Text style={[styles.statusText, { color: statusColor(visitor.status) }]}> {statusLabel(visitor)}</Text>
+        {visitantesFiltrados.map((visitor) => {
+          const temQr = visitor.status === 'ativo' || visitor.status === 'agendado';
+          return (
+            <Pressable
+              key={visitor.id}
+              disabled={!temQr}
+              onPress={() => setVisitanteQr(visitor)}
+              style={({ pressed }) => [styles.card, !temQr && styles.cardExpired, pressed && styles.cardPressionado]}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {visitor.nome_visitante
+                    .split(' ')
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join('')}
+                </Text>
               </View>
-              <Text style={styles.timestampText}>{horarioTexto(visitor)}</Text>
-            </View>
 
-            {visitor.recorrente && visitor.status !== 'expirado' && visitor.status !== 'cancelado' && (
-              <Pressable style={styles.qrButton}>
-                <Ionicons name="qr-code-outline" size={16} color={colors.navy} />
-              </Pressable>
-            )}
-          </View>
-        ))}
+              <View style={styles.cardContent}>
+                <Text style={styles.unitText}>APTO {visitor.apartamento}</Text>
+                <Text style={styles.nameText}>{visitor.nome_visitante}</Text>
+                {!!visitor.detalhe && <Text style={styles.detailText}>{visitor.detalhe}</Text>}
+
+                <View style={styles.statusRow}>
+                  <StatusIcon status={visitor.status} />
+                  <Text style={[styles.statusText, { color: statusColor(visitor.status) }]}> {statusLabel(visitor)}</Text>
+                </View>
+                <Text style={styles.timestampText}>{horarioTexto(visitor)}</Text>
+              </View>
+
+              {temQr && (
+                <View style={styles.qrButton}>
+                  <Ionicons name="qr-code-outline" size={16} color={colors.navy} />
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
 
         <Pressable style={styles.addButton} onPress={() => setModalVisivel(true)}>
           <Ionicons name="add" size={18} color="#FFF" />
@@ -305,6 +378,60 @@ export default function VisitantesAutorizados() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!visitanteQr} animationType="fade" transparent onRequestClose={() => setVisitanteQr(null)}>
+        <View style={styles.qrFundo}>
+          {visitanteQr && (
+            <View style={styles.qrJanela}>
+              <View ref={cartaoQrRef} collapsable={false} style={styles.qrCartao}>
+                <Text style={styles.qrMarca}>Agilifox</Text>
+                <Text style={styles.qrTitulo}>Convite de entrada</Text>
+                <Text style={styles.qrNome}>{visitanteQr.nome_visitante}</Text>
+                <Text style={styles.qrUnidade}>
+                  {visitanteQr.apartamento ? `Visita ao apto ${visitanteQr.apartamento}` : 'Visita ao condomínio'}
+                  {bloco ? ` · ${bloco}` : ''}
+                </Text>
+                <View style={styles.qrCodigo}>
+                  <QRCode
+                    value={codigoQr(visitanteQr)}
+                    size={200}
+                    color={colors.navy}
+                    backgroundColor="#FFFFFF"
+                    quietZone={8}
+                  />
+                </View>
+                <Text style={styles.qrValidade}>
+                  {visitanteQr.recorrente ? 'Vale para todas as visitas até ser cancelado' : 'Vale para uma entrada'}
+                </Text>
+                <Text style={styles.qrInstrucao}>Mostre este QR code na portaria.</Text>
+              </View>
+
+              <Pressable
+                style={[styles.qrBotaoEnviar, compartilhando && { opacity: 0.6 }]}
+                onPress={handleCompartilharQr}
+                disabled={compartilhando}
+              >
+                {compartilhando ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="share-social-outline" size={18} color="#FFF" />
+                    <Text style={styles.qrBotaoEnviarTexto}>Enviar para o visitante</Text>
+                  </>
+                )}
+              </Pressable>
+
+              <Pressable style={styles.qrBotaoCancelar} onPress={handleCancelarAutorizacao}>
+                <Text style={styles.qrBotaoCancelarTexto}>Cancelar autorização</Text>
+              </Pressable>
+
+              <Pressable style={styles.qrBotaoFechar} onPress={() => setVisitanteQr(null)}>
+                <Text style={styles.qrBotaoFecharTexto}>Fechar</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
@@ -386,6 +513,14 @@ const styles = StyleSheet.create({
   },
   cardExpired: {
     opacity: 0.6,
+  },
+  cardPressionado: {
+    opacity: 0.8,
+  },
+  dica: {
+    fontSize: 13,
+    color: colors.gray,
+    marginBottom: 12,
   },
   avatar: {
     width: 44,
@@ -549,5 +684,103 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  qrFundo: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(38, 52, 74, 0.5)',
+  },
+  qrJanela: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 16,
+  },
+  qrCartao: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  qrMarca: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: colors.amber,
+    textTransform: 'uppercase',
+  },
+  qrTitulo: {
+    fontSize: 14,
+    color: colors.gray,
+    marginTop: 2,
+  },
+  qrNome: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.navy,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  qrUnidade: {
+    fontSize: 14,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  qrCodigo: {
+    marginVertical: 16,
+  },
+  qrValidade: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.navy,
+    textAlign: 'center',
+  },
+  qrInstrucao: {
+    fontSize: 12,
+    color: colors.gray,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  qrBotaoEnviar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: colors.amber,
+  },
+  qrBotaoEnviarTexto: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  qrBotaoCancelar: {
+    marginTop: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5B4B4',
+  },
+  qrBotaoCancelarTexto: {
+    color: '#C0392B',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  qrBotaoFechar: {
+    marginTop: 6,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  qrBotaoFecharTexto: {
+    color: colors.gray,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

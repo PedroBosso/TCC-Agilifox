@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
@@ -8,7 +6,6 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -17,6 +14,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -562,7 +561,7 @@ export default function TelaReservaAmbientes() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.listaVaziaContainer}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -572,17 +571,14 @@ export default function TelaReservaAmbientes() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}> 
-        <TouchableOpacity style={styles.botaoVoltar} onPress={() => router.push('./inicio')}>
-          <Ionicons name="chevron-back" size={24} color="#2B2823" />
-        </TouchableOpacity>
-        <View style={styles.cabecalhoTextoWrapper}>
+        <TituloComVoltar>
           <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
           <Text style={styles.cabecalhoTitulo}>Reserva de Ambientes</Text>
-        </View>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>
@@ -722,23 +718,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
-  },
-  botaoVoltar: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  cabecalhoTextoWrapper: {
-    flex: 1,
   },
   cabecalhoSaudacao: {
     fontSize: 13,

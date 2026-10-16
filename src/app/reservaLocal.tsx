@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import BotaoVoltar from "../components/BotaoVoltar";
 import { supabase } from "../lib/supabase";
 
 interface ReservaHoje {
@@ -98,6 +99,7 @@ export default function ReservasDeHoje() {
 
   return (
     <ScrollView style={styles.container}>
+      <BotaoVoltar style={styles.voltar} />
       <Text style={styles.titulo}>Reservas de Hoje</Text>
       <Text style={styles.subtitulo}>Espaços reservados para hoje:</Text>
 
@@ -145,11 +147,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
 
+  voltar: {
+    marginTop: 25,
+  },
+
   titulo: {
     fontSize: 28,
     fontWeight: "bold",
     textAlign: "center",
-    marginTop: 30,
+    marginTop: 12,
     marginBottom: 8,
   },
 

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   TextInput,
@@ -16,6 +15,8 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -422,12 +423,14 @@ export default function TelaPetsSindico() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Pets do Condomínio</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Pets do Condomínio</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.resumoLinha}>

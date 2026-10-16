@@ -7,7 +7,6 @@ import {
     FlatList,
     Modal,
     Pressable,
-    SafeAreaView,
     StatusBar,
     StyleSheet,
     Text,
@@ -15,6 +14,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -257,12 +258,14 @@ export default function TelaBotaoPanico() {
   const larguraProgresso = progressoAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Botão de Pânico</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Botão de Pânico</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>

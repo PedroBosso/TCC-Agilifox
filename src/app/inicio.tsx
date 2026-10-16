@@ -6,7 +6,6 @@ import { supabase } from '../lib/supabase';
 
 const Routes = {
     encomenda: './encomendas',
-    telacad: './telaCad',
     comunicados: './comunicados',
     ocorrencias: './ocorrencias',
     meusvisitantes: './visitantes',
@@ -33,7 +32,6 @@ const menuItems = [
     { id: '7', label: 'Achados e perdidos', icon: require('../../assets/images/lupa.png'), color: '#e49c15', route: Routes.achadosperdidos },
     { id: '8', label: 'Assembleia online', icon: require('../../assets/images/meet.png'), color: '#e8a842', route: Routes.assembleia },
     { id: '9', label: 'Pagamentos', icon: require('../../assets/images/pagamentos.png'), color: '#e49c15', route: Routes.pagamentos },
-    { id: '11', label: 'Gerenciamento de visitantes', icon: require('../../assets/images/pessoas.png'), color: '#e49c42', route: Routes.telacad },
     { id: '12', label: 'estacionamento', icon: require('../../assets/images/carro.png'), color: '#e8a815', route: Routes.carros },
     { id: '13', label: 'Gerenciamento de PETS', icon: require('../../assets/images/animal.png'), color: '#e8a842', route: Routes.pets, iconePequeno: true },
     { id: '14', label: 'Enquetes', icon: require('../../assets/images/enquete.png'), color: '#e8a815', route: Routes.enquetes },

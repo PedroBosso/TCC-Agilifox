@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 interface Conversa {
@@ -96,10 +97,9 @@ export default function Mensagens() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.voltar}>Voltar</Text>
-        </Pressable>
-        <Text style={styles.titulo}>Mensagens</Text>
+        <TituloComVoltar>
+          <Text style={styles.titulo}>Mensagens</Text>
+        </TituloComVoltar>
       </View>
 
       {role === 'morador' && (
@@ -165,12 +165,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(228, 156, 21, 0.2)',
-  },
-  voltar: {
-    fontSize: 14,
-    color: '#e49c15',
-    fontWeight: '700',
-    marginBottom: 10,
   },
   titulo: {
     fontSize: 22,

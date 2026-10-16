@@ -1,8 +1,8 @@
 // Tela para o porteiro registrar a chegada de encomendas aos moradores — dados vão para o Supabase (tabela encomendas).
 
-import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 interface EncomendaPendente {
@@ -119,13 +119,10 @@ export default function CadastrarEncomendaPorteiro() {
         <View style={styles.container}>
             {/* Header fixo */}
             <View style={styles.header}>
-                <View>
+                <TituloComVoltar>
                     <Text style={styles.headerLabel}>Portaria</Text>
                     <Text style={styles.headerText}>Cadastrar Encomenda</Text>
-                </View>
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>Voltar</Text>
-                </Pressable>
+                </TituloComVoltar>
             </View>
 
             {/* Conteúdo scrollável */}
@@ -300,17 +297,6 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '800',
         color: '#1a1a1a',
-    },
-    backButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        backgroundColor: '#e49c15',
-        borderRadius: 8,
-    },
-    backButtonText: {
-        color: '#ffffff',
-        fontWeight: '700',
-        fontSize: 12,
     },
     welcomeSection: {
         marginBottom: 24,

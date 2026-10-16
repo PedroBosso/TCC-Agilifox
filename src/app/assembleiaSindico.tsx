@@ -7,8 +7,8 @@ import {
     KeyboardAvoidingView,
     Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
+    Share,
     StatusBar,
     StyleSheet,
     Text,
@@ -16,6 +16,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -167,6 +169,7 @@ interface CartaoAssembleiaProps {
   onEditarLink: (assembleia: Assembleia) => void;
   onCancelar: (id: string) => void;
   onEncerrarAgora: (id: string) => void;
+  onVerPresencas: (assembleia: Assembleia) => void;
 }
 
 function CartaoAssembleia({
@@ -175,11 +178,13 @@ function CartaoAssembleia({
   onEditarLink,
   onCancelar,
   onEncerrarAgora,
+  onVerPresencas,
 }: CartaoAssembleiaProps) {
   const status = calcularStatusExibicao(assembleia, agora);
   const podeCancelar = status === 'agendada' || status === 'ao_vivo';
   const podeEncerrar = status === 'ao_vivo';
   const podeEditarLink = status === 'agendada' || status === 'ao_vivo';
+  const podeVerPresencas = status !== 'agendada';
 
   return (
     <View style={styles.cartao}>
@@ -199,6 +204,11 @@ function CartaoAssembleia({
       </View>
 
       <View style={styles.cartaoAcoes}>
+        {podeVerPresencas && (
+          <TouchableOpacity onPress={() => onVerPresencas(assembleia)} style={styles.cartaoAcaoBotao}>
+            <Text style={styles.cartaoAcaoTexto}>Lista de presença</Text>
+          </TouchableOpacity>
+        )}
         {podeEditarLink && (
           <TouchableOpacity onPress={() => onEditarLink(assembleia)} style={styles.cartaoAcaoBotao}>
             <Text style={styles.cartaoAcaoTexto}>Editar link</Text>
@@ -296,6 +306,137 @@ function ModalEditarLink({ assembleia, onFechar, onSalvar }: ModalEditarLinkProp
   );
 }
 
+// ---------- Modal da lista de presença ----------
+
+interface Presenca {
+  id: string;
+  nome: string;
+  apto: string | null;
+  bloco: string | null;
+  entrouEm: string;
+}
+
+function textoUnidadePresenca(p: Presenca): string {
+  return [p.apto && `Apto ${p.apto}`, p.bloco].filter(Boolean).join(' · ');
+}
+
+interface ModalPresencasProps {
+  assembleia: Assembleia | null;
+  onFechar: () => void;
+}
+
+function ModalPresencas({ assembleia, onFechar }: ModalPresencasProps) {
+  const [presencas, setPresencas] = useState<Presenca[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const assembleiaId = assembleia?.id;
+
+  useEffect(() => {
+    if (!assembleiaId) return;
+    let ativo = true;
+    setCarregando(true);
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('assembleia_presencas')
+        .select('id, nome, apto, bloco, entrou_em')
+        .eq('assembleia_id', assembleiaId)
+        .order('entrou_em');
+
+      if (!ativo) return;
+      if (error) Alert.alert('Erro', 'Não foi possível carregar a lista de presença.');
+
+      setPresencas(
+        (data ?? []).map((p) => ({
+          id: p.id,
+          nome: p.nome,
+          apto: p.apto,
+          bloco: p.bloco,
+          entrouEm: p.entrou_em,
+        }))
+      );
+      setCarregando(false);
+    })();
+
+    return () => { ativo = false; };
+  }, [assembleiaId]);
+
+  async function handleCompartilhar() {
+    if (!assembleia) return;
+
+    const linhas = presencas.map((p, i) => {
+      const unidade = textoUnidadePresenca(p);
+      const hora = new Date(p.entrouEm).toLocaleTimeString('pt-BR');
+      return `${i + 1}. ${p.nome}${unidade ? ` (${unidade})` : ''} - entrou às ${hora}`;
+    });
+
+    const texto = [
+      `Lista de presença - ${assembleia.titulo}`,
+      formatarDataHoraExtensa(assembleia.dataISO),
+      `Total: ${presencas.length} presente${presencas.length === 1 ? '' : 's'}`,
+      '',
+      ...linhas,
+    ].join('\n');
+
+    try {
+      await Share.share({ message: texto });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível compartilhar a lista.');
+    }
+  }
+
+  return (
+    <Modal visible={!!assembleia} animationType="slide" transparent onRequestClose={onFechar}>
+      <View style={styles.modalFundo}>
+        <View style={[styles.modalCartao, styles.presencaModalCartao]}>
+          <View style={styles.modalAlcinha} />
+
+          <View style={styles.modalCabecalho}>
+            <Text style={styles.modalTitulo}>Lista de presença</Text>
+            <TouchableOpacity onPress={onFechar} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.modalFechar}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {assembleia && <Text style={styles.modalSubtitulo}>{assembleia.titulo}</Text>}
+
+          {carregando ? (
+            <ActivityIndicator style={styles.presencaCarregando} color="#2B2823" />
+          ) : presencas.length === 0 ? (
+            <Text style={styles.presencaVazia}>Ninguém entrou nesta assembleia pelo aplicativo.</Text>
+          ) : (
+            <>
+              <Text style={styles.presencaTotal}>
+                {presencas.length} presente{presencas.length === 1 ? '' : 's'}
+              </Text>
+
+              <ScrollView style={styles.presencaLista}>
+                {presencas.map((p, i) => (
+                  <View key={p.id} style={styles.presencaLinha}>
+                    <Text style={styles.presencaNumero}>{i + 1}</Text>
+                    <View style={styles.presencaInfo}>
+                      <Text style={styles.presencaNome}>{p.nome}</Text>
+                      {textoUnidadePresenca(p) !== '' && (
+                        <Text style={styles.presencaUnidade}>{textoUnidadePresenca(p)}</Text>
+                      )}
+                    </View>
+                    <Text style={styles.presencaHora}>
+                      {new Date(p.entrouEm).toLocaleTimeString('pt-BR')}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={styles.botaoEnviar} onPress={handleCompartilhar} activeOpacity={0.85}>
+                <Text style={styles.botaoEnviarTexto}>Compartilhar lista</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ---------- Tela principal ----------
 
 export default function TelaAssembleiaSindico() {
@@ -319,6 +460,7 @@ export default function TelaAssembleiaSindico() {
   const [link, setLink] = useState('');
 
   const [assembleiaEditandoLink, setAssembleiaEditandoLink] = useState<Assembleia | null>(null);
+  const [assembleiaPresencas, setAssembleiaPresencas] = useState<Assembleia | null>(null);
 
   useEffect(() => {
     const intervalo = setInterval(() => setAgora(new Date()), 30000);
@@ -446,7 +588,7 @@ export default function TelaAssembleiaSindico() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.listaVaziaContainer}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -456,12 +598,14 @@ export default function TelaAssembleiaSindico() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Assembleias Online</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Assembleias Online</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>
@@ -605,6 +749,7 @@ export default function TelaAssembleiaSindico() {
               onEditarLink={setAssembleiaEditandoLink}
               onCancelar={handleCancelarAssembleia}
               onEncerrarAgora={handleEncerrarAgora}
+              onVerPresencas={setAssembleiaPresencas}
             />
           )}
           contentContainerStyle={
@@ -619,6 +764,11 @@ export default function TelaAssembleiaSindico() {
         assembleia={assembleiaEditandoLink}
         onFechar={() => setAssembleiaEditandoLink(null)}
         onSalvar={handleSalvarLink}
+      />
+
+      <ModalPresencas
+        assembleia={assembleiaPresencas}
+        onFechar={() => setAssembleiaPresencas(null)}
       />
     </SafeAreaView>
   );
@@ -966,5 +1116,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8A8377',
     marginBottom: 8,
+  },
+  presencaModalCartao: {
+    maxHeight: '80%',
+  },
+  presencaCarregando: {
+    marginVertical: 30,
+  },
+  presencaVazia: {
+    fontSize: 14,
+    color: '#8A8377',
+    textAlign: 'center',
+    marginVertical: 30,
+  },
+  presencaTotal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2F855A',
+    marginBottom: 8,
+  },
+  presencaLista: {
+    flexGrow: 0,
+  },
+  presencaLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0ECE5',
+    gap: 10,
+  },
+  presencaNumero: {
+    width: 22,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#A8A199',
+  },
+  presencaInfo: {
+    flex: 1,
+  },
+  presencaNome: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2B2823',
+  },
+  presencaUnidade: {
+    fontSize: 12,
+    color: '#8A8377',
+    marginTop: 2,
+  },
+  presencaHora: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B6459',
   },
 });

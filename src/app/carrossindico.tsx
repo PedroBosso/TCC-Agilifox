@@ -1,6 +1,5 @@
 // Tela de Estacionamento do síndico — consulta todos os veículos e vagas do condomínio.
 
-import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 interface Veiculo {
@@ -157,13 +157,12 @@ export default function EstacionamentoSindico() {
   return (
     <View style={styles.tela}>
       <View style={styles.cabecalho}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.voltar}>Voltar</Text>
-        </Pressable>
-        <Text style={styles.cabecalhoTitulo}>Estacionamento</Text>
-        <Text style={styles.cabecalhoSubtitulo}>
-          {veiculos.length} veículo{veiculos.length === 1 ? '' : 's'} · {totalNaGaragem} na garagem · {vagas.length} vaga{vagas.length === 1 ? '' : 's'}
-        </Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoTitulo}>Estacionamento</Text>
+          <Text style={styles.cabecalhoSubtitulo}>
+            {veiculos.length} veículo{veiculos.length === 1 ? '' : 's'} · {totalNaGaragem} na garagem · {vagas.length} vaga{vagas.length === 1 ? '' : 's'}
+          </Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>
@@ -300,12 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 12,
-  },
-  voltar: {
-    fontSize: 14,
-    color: '#e49c15',
-    fontWeight: '700',
-    marginBottom: 12,
   },
   cabecalhoTitulo: {
     fontSize: 26,

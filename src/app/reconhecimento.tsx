@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { faceService, ReconhecimentoResult } from '../../services/faceServices';
+import BotaoVoltar from '../components/BotaoVoltar';
 
 type Estado = 'camera' | 'processando' | 'resultado';
 
@@ -121,11 +122,9 @@ export default function Reconhecimento() {
       <View style={[styles.container, styles.centralized, { paddingHorizontal: 24 }]}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.voltar}>←</Text>
-          </Pressable>
+          <BotaoVoltar />
           <Text style={styles.titulo}>Resultado</Text>
-          <View style={{ width: 32 }} />
+          <View style={{ width: 38 }} />
         </View>
 
         {/* Foto capturada */}
@@ -244,10 +243,6 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingTop: 50,
     paddingBottom: 20,
-  },
-  voltar: {
-    fontSize: 26,
-    color: '#000',
   },
   titulo: {
     fontSize: 20,

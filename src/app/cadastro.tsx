@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import BotaoVoltar from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // Converte uma string base64 (foto capturada pela câmera) em ArrayBuffer
@@ -181,11 +182,9 @@ export default function CadastroVisitante() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Pressable onPress={() => router.back()}>
-              <Text style={styles.voltar}>←</Text>
-            </Pressable>
+            <BotaoVoltar />
             <Text style={styles.titulo}>Novo visitante</Text>
-            <View style={{ width: 32 }} />
+            <View style={{ width: 38 }} />
           </View>
 
           {/* Prévia da foto */}
@@ -337,10 +336,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 50,
     paddingBottom: 20,
-  },
-  voltar: {
-    fontSize: 26,
-    color: '#000',
   },
   titulo: {
     fontSize: 20,

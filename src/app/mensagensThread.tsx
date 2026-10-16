@@ -1,6 +1,7 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 interface Mensagem {
@@ -171,10 +172,9 @@ export default function MensagensThread() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.voltar}>Voltar</Text>
-          </Pressable>
-          <Text style={styles.titulo}>{tituloThread}</Text>
+          <TituloComVoltar>
+            <Text style={styles.titulo}>{tituloThread}</Text>
+          </TituloComVoltar>
         </View>
 
         <FlatList
@@ -231,12 +231,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(228, 156, 21, 0.2)',
-  },
-  voltar: {
-    fontSize: 14,
-    color: '#e49c15',
-    fontWeight: '700',
-    marginBottom: 10,
   },
   titulo: {
     fontSize: 22,

@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,6 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Configuração visual ----------
@@ -391,21 +392,21 @@ export default function TelaOcorrencias() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={[styles.tela, { alignItems: 'center', justifyContent: 'center' }]}>
+      <SafeAreaView edges={['top']} style={[styles.tela, { alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color="#2B2823" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <View>
+        <TituloComVoltar>
           <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
           <Text style={styles.cabecalhoTitulo}>Ocorrências</Text>
-        </View>
+        </TituloComVoltar>
         {totalAbertas > 0 && (
           <View style={styles.contadorAbertas}>
             <Text style={styles.contadorAbertasTexto}>
@@ -467,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 16,
     paddingBottom: 16,
   },
   cabecalhoSaudacao: {

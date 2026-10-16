@@ -4,7 +4,6 @@ import {
     Animated,
     FlatList,
     Modal,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -12,6 +11,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 type Area = 'entrada' | 'garagem' | 'areas_comuns' | 'seguranca';
@@ -198,14 +199,14 @@ export default function TelaCamerasPorteiro() {
   const totalOnline = cameras.filter((c) => c.online).length;
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <View>
+        <TituloComVoltar>
           <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
           <Text style={styles.cabecalhoTitulo}>Câmeras</Text>
-        </View>
+        </TituloComVoltar>
         <View style={styles.contadorOnline}>
           <View style={styles.contadorPonto} />
           <Text style={styles.contadorTexto}>

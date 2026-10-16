@@ -2,10 +2,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     FlatList,
     Linking,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -13,6 +13,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { TituloComVoltar } from '../components/BotaoVoltar';
 import { supabase } from '../lib/supabase';
 
 // ---------- Tipos ----------
@@ -191,6 +193,8 @@ export default function TelaAssembleiaMorador() {
   const [assembleias, setAssembleias] = useState<Assembleia[]>([]);
   const [agora, setAgora] = useState(new Date());
   const [abaAtiva, setAbaAtiva] = useState<Aba>('atual');
+  const [presencaEm, setPresencaEm] = useState<string | null>(null);
+  const [entrando, setEntrando] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -287,6 +291,29 @@ export default function TelaAssembleiaMorador() {
   }
 
   const statusAtual = atual ? calcularStatusExibicao(atual, agora) : null;
+  const atualId = atual?.id;
+
+  // Mostra ao morador se a presença dele já está registrada nessa assembleia.
+  useEffect(() => {
+    if (!atualId) return;
+    let ativo = true;
+
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !ativo) return;
+
+      const { data } = await supabase
+        .from('assembleia_presencas')
+        .select('entrou_em')
+        .eq('assembleia_id', atualId)
+        .eq('morador_id', user.id)
+        .maybeSingle();
+
+      if (ativo) setPresencaEm(data?.entrou_em ?? null);
+    })();
+
+    return () => { ativo = false; };
+  }, [atualId]);
 
   useEffect(() => {
     if (statusAtual !== 'ao_vivo') return;
@@ -302,11 +329,42 @@ export default function TelaAssembleiaMorador() {
 
   async function handleEntrarNaReuniao() {
     if (!atual || statusAtual !== 'ao_vivo' || !atual.linkReuniao) return;
+
+    setEntrando(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setEntrando(false);
+      Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
+      return;
+    }
+
+    // A presença é registrada antes de abrir a reunião: é ela que vale como
+    // lista de presença da assembleia. O horário é definido pelo banco.
+    const { data, error } = await supabase
+      .from('assembleia_presencas')
+      .insert({ assembleia_id: atual.id, morador_id: user.id })
+      .select('entrou_em')
+      .single();
+
+    setEntrando(false);
+
+    // 23505: a presença já tinha sido registrada numa entrada anterior.
+    if (error && error.code !== '23505') {
+      Alert.alert(
+        'Presença não registrada',
+        'Não foi possível registrar sua presença na assembleia. Verifique a conexão e tente novamente.'
+      );
+      return;
+    }
+    if (data) setPresencaEm(data.entrou_em);
+
     try {
-      const suportado = await Linking.canOpenURL(atual.linkReuniao);
-      if (suportado) await Linking.openURL(atual.linkReuniao);
+      await Linking.openURL(atual.linkReuniao);
     } catch {
-      // Em produção, mostrar um aviso amigável caso o link não possa ser aberto.
+      Alert.alert(
+        'Não foi possível abrir a reunião',
+        'Sua presença foi registrada, mas o link da reunião não abriu. Avise o síndico.'
+      );
     }
   }
 
@@ -330,7 +388,7 @@ export default function TelaAssembleiaMorador() {
 
   if (carregando) {
     return (
-      <SafeAreaView style={styles.tela}>
+      <SafeAreaView edges={['top']} style={styles.tela}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
         <View style={styles.listaVaziaContainer}>
           <ActivityIndicator size="large" color="#2B2823" />
@@ -340,12 +398,14 @@ export default function TelaAssembleiaMorador() {
   }
 
   return (
-    <SafeAreaView style={styles.tela}>
+    <SafeAreaView edges={['top']} style={styles.tela}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <View style={styles.cabecalho}>
-        <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
-        <Text style={styles.cabecalhoTitulo}>Assembleia Online</Text>
+        <TituloComVoltar>
+          <Text style={styles.cabecalhoSaudacao}>Residencial Jardim das Flores</Text>
+          <Text style={styles.cabecalhoTitulo}>Assembleia Online</Text>
+        </TituloComVoltar>
       </View>
 
       <View style={styles.abas}>
@@ -380,13 +440,21 @@ export default function TelaAssembleiaMorador() {
               <Text style={styles.cartaoDestaqueData}>{formatarDataHoraExtensa(atual.dataISO)}</Text>
 
               <TouchableOpacity
-                style={[styles.botaoEntrar, statusAtual !== 'ao_vivo' && styles.botaoEntrarDesabilitado]}
+                style={[styles.botaoEntrar, (statusAtual !== 'ao_vivo' || entrando) && styles.botaoEntrarDesabilitado]}
                 onPress={handleEntrarNaReuniao}
-                disabled={statusAtual !== 'ao_vivo'}
+                disabled={statusAtual !== 'ao_vivo' || entrando}
                 activeOpacity={0.85}
               >
-                <Text style={styles.botaoEntrarTexto}>{textoBotao}</Text>
+                <Text style={styles.botaoEntrarTexto}>{entrando ? 'Registrando presença...' : textoBotao}</Text>
               </TouchableOpacity>
+
+              {presencaEm && (
+                <View style={styles.presencaSelo}>
+                  <Text style={styles.presencaSeloTexto}>
+                    Presença registrada às {new Date(presencaEm).toLocaleTimeString('pt-BR')}
+                  </Text>
+                </View>
+              )}
 
               <Text style={styles.cartaoDestaqueAjuda}>{textoAjuda}</Text>
             </View>
@@ -534,6 +602,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
+  },
+  presencaSelo: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#E7F4ED',
+  },
+  presencaSeloTexto: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2F855A',
   },
   cartaoDestaqueAjuda: {
     fontSize: 12,

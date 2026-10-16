@@ -27,10 +27,10 @@ tela inicial correspondente.
 TCC-Agilifox/
 ├── src/
 │   ├── app/            → todas as telas do aplicativo (45 arquivos)
-│   ├── components/     → pedaços de tela reutilizáveis
+│   ├── components/     → pedaços de tela reutilizáveis (ex.: a seta de voltar usada em todas as telas)
 │   ├── lib/supabase.ts → a "ponte" que conecta o app ao banco de dados
 │   └── theme/          → cores e tamanhos padronizados
-├── supabase/migrations/→ os comandos SQL que criam o banco (10 arquivos)
+├── supabase/migrations/→ os comandos SQL que criam o banco (11 arquivos)
 ├── assets/images/      → ícones e imagens
 ├── app.json            → configurações do app (nome, ícone, plugins)
 └── .env                → endereço e chave do seu banco (não vai para o GitHub)
@@ -146,6 +146,15 @@ Para não repetir a mesma verificação em dezenas de regras, existem atalhos:
 tela `cadastrarMorador.tsx`. Isso faz sentido num condomínio: ninguém deveria
 conseguir se cadastrar sozinho e virar morador do prédio.
 
+O bloco do morador é **escolhido de uma lista** (tabela `blocos`), não digitado.
+O banco recusa qualquer bloco que não esteja na lista, então um erro de
+digitação não consegue separar um morador do resto do prédio.
+
+Toda conta nova nasce como **morador**, mesmo que o app tente enviar outro
+papel. Síndico e porteiro são promovidos direto no banco. E, fora o síndico,
+ninguém altera o próprio papel, bloco ou apartamento pela API — só telefone e
+foto.
+
 ### Um detalhe interessante
 
 Quando o síndico cria a conta de um morador, o app usa um canal Supabase
@@ -198,30 +207,58 @@ Conversa privada entre um morador e o síndico ou a portaria. Como pode haver
 vários porteiros, não é uma conversa pessoa-a-pessoa: é uma "caixa" por assunto,
 onde qualquer porteiro de plantão pode responder.
 
+### Assembleias e lista de presença
+O síndico agenda a assembleia com o link da reunião. Quando o morador toca em
+"Entrar na reunião", o app **registra a presença antes de abrir o link**. O
+registro guarda nome, apartamento e bloco do momento da entrada, com o horário
+definido pelo banco (não pelo celular, que poderia estar com a hora errada ou
+ser manipulado). O banco só aceita o registro durante a janela da reunião, e
+nenhum registro pode ser alterado ou apagado pelo app. O síndico consulta a
+lista de cada assembleia e pode compartilhá-la para anexar à ata.
+
 ### Botão de pânico
 O morador segura o botão por 3 segundos (evita acionamento acidental) e a
 portaria recebe o alerta. A portaria marca quando visualizou e quando atendeu.
 
+### Visitantes e QR code de entrada
+O morador autoriza o visitante pelo nome e diz se a visita é única ou
+recorrente. Ao tocar no visitante, o app mostra um **QR code de entrada**, que
+pode ser enviado como imagem pelo WhatsApp. Na portaria, o porteiro abre
+"Acessos", toca em "Ler QR code do visitante" e aponta a câmera. O app consulta
+a autorização no banco e mostra se a entrada vale; ao liberar, a entrada fica
+no histórico da portaria.
+- O QR code guarda só o código da autorização. Quem decide se ele vale é o
+  banco, na hora da leitura, então um QR antigo ou cancelado é recusado.
+- Visita única: depois da primeira entrada, o mesmo QR code para de funcionar.
+- O morador pode cancelar a autorização a qualquer momento.
+
+O reconhecimento facial ainda não está ligado. O passo a passo para
+implementá-lo está em `RECONHECIMENTO_FACIAL.md`.
+
 ### Outras
 Achados e perdidos, pets, veículos e vagas (incluindo aluguel de vaga entre
 moradores), assembleias online, enquetes com votação, financeiro (prestação de
-contas e faturas), câmeras e controle de acesso.
+contas e faturas) e câmeras.
 
 ---
 
 ## 7. O banco de dados
 
-São **29 tabelas**. As principais:
+São **31 tabelas**. As principais:
 
 | Tabela | Guarda |
 |---|---|
 | `profiles` | Nome, papel, apartamento e bloco de cada usuário |
+| `blocos` | Lista oficial de blocos do condomínio |
+| `assembleia_presencas` | Quem entrou em cada assembleia e quando |
 | `comunicados` | Avisos publicados pelo síndico |
 | `encomendas` | Pacotes, com status e código de entrega |
 | `ocorrencias` | Problemas relatados por moradores e portaria |
 | `ambientes` / `reservas_ambiente` | Espaços comuns e suas reservas |
 | `mensagens_predio` | Chat em grupo por bloco |
 | `mensagens_diretas` | Conversas com síndico/portaria |
+| `autorizacoes_visita` | Visitantes autorizados pelos moradores (base do QR code) |
+| `registros_acesso` | Entradas e saídas liberadas pela portaria |
 | `veiculos` / `vagas` | Carros e vagas de garagem |
 | `alertas_panico` | Acionamentos do botão de emergência |
 | `faturas` / `lancamentos_financeiros` | Cobranças e contas do condomínio |
@@ -235,9 +272,10 @@ executados **em ordem**:
 - **0002** — liga a segurança (RLS) e escreve as permissões
 - **0003** — cria os espaços de armazenamento de arquivos (fotos, documentos)
 - **0004** — dados iniciais opcionais (categorias financeiras, ambientes)
-- **0005 a 0010** — ajustes feitos depois: e-mail no perfil, correções de
-  segurança apontadas pelo Supabase, chat do prédio, mensagens diretas e a
-  liberação do síndico no chat
+- **0005 a 0011** — ajustes feitos depois: e-mail no perfil, correções de
+  segurança apontadas pelo Supabase, chat do prédio, mensagens diretas, a
+  liberação do síndico no chat, a lista de blocos, a lista de presença das
+  assembleias e a trava que impede o usuário de alterar o próprio papel
 
 O passo a passo para rodar tudo isso está em
 [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
@@ -288,7 +326,7 @@ Depois é só ler o QR code com o app **Expo Go** no celular.
 
 5. **Limitações conhecidas e assumidas:**
    - O reconhecimento facial de visitantes depende de um serviço externo que
-     não faz parte deste projeto
+     ainda não foi contratado; o roteiro está em `RECONHECIMENTO_FACIAL.md`
    - As câmeras mostram um espaço reservado no lugar do vídeo, pois não há
      equipamento real conectado
    - Excluir um morador desativa a conta em vez de apagá-la, porque apagar um
