@@ -73,6 +73,10 @@ seu editor, copie todo o conteúdo, cole no SQL Editor do Supabase e clique em
 11. [`supabase/migrations/0011_presencas_blocos_seguranca.sql`](supabase/migrations/0011_presencas_blocos_seguranca.sql) —
     lista oficial de blocos, lista de presença das assembleias e trava que
     impede o usuário de alterar o próprio papel ou bloco pela API.
+12. [`supabase/migrations/0012_cobrancas.sql`](supabase/migrations/0012_cobrancas.sql) —
+    trava das contas lançadas pelo síndico: o morador só pode confirmar o
+    pagamento, com a data gravada pelo banco, e o síndico pode excluir contas
+    que ainda não foram pagas.
 
 Se algum arquivo falhar no meio, corrija o erro reportado antes de continuar
 (normalmente indica que um passo anterior não rodou por completo).

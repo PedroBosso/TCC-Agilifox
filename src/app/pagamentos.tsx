@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+// Tela do morador com as contas lançadas pelo síndico. O app não movimenta dinheiro:
+// o morador paga pelo meio combinado com o síndico e confirma o pagamento aqui.
+
+import { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
-    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -18,7 +21,6 @@ import { supabase } from '../lib/supabase';
 
 type StatusBaseFatura = 'pendente' | 'pago';
 type StatusExibicaoFatura = 'pendente' | 'vencido' | 'pago';
-type FormaPagamento = 'pix' | 'boleto';
 type Aba = 'aberto' | 'pagas';
 
 interface Fatura {
@@ -28,10 +30,7 @@ interface Fatura {
   valor: number;
   vencimentoISO: string;
   statusBase: StatusBaseFatura;
-  dataPagamentoISO?: string;
-  formaPagamento?: FormaPagamento;
-  codigoPix: string | null;
-  linhaDigitavel: string | null;
+  dataPagamentoISO: string | null;
 }
 
 // ---------- Configuração visual ----------
@@ -44,27 +43,38 @@ const CONFIG_STATUS: Record<StatusExibicaoFatura, { nome: string; cor: string; f
 
 // ---------- Helpers ----------
 
+// Datas sem horário (AAAA-MM-DD) são lidas no fuso do celular, para não aparecerem um dia antes.
+function dataLocal(dataISO: string): Date {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataISO);
+  return partes ? new Date(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3])) : new Date(dataISO);
+}
+
+function inicioDoDia(data: Date): Date {
+  const copia = new Date(data);
+  copia.setHours(0, 0, 0, 0);
+  return copia;
+}
+
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function formatarDataCurta(dataISO: string): string {
-  return new Date(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+function formatarDataExtensa(dataISO: string): string {
+  return dataLocal(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function formatarDataExtensa(dataISO: string): string {
-  return new Date(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+function formatarDataHora(dataISO: string): string {
+  const data = new Date(dataISO);
+  return `${data.toLocaleDateString('pt-BR')} às ${data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function calcularStatusExibicao(fatura: Fatura, hoje: Date): StatusExibicaoFatura {
   if (fatura.statusBase === 'pago') return 'pago';
-  const vencimento = new Date(fatura.vencimentoISO);
-  return vencimento < hoje ? 'vencido' : 'pendente';
+  return dataLocal(fatura.vencimentoISO) < inicioDoDia(hoje) ? 'vencido' : 'pendente';
 }
 
 function calcularDiasParaVencimento(vencimentoISO: string, hoje: Date): number {
-  const vencimento = new Date(vencimentoISO);
-  const diffMs = vencimento.setHours(0, 0, 0, 0) - new Date(hoje).setHours(0, 0, 0, 0);
+  const diffMs = dataLocal(vencimentoISO).getTime() - inicioDoDia(hoje).getTime();
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
@@ -91,10 +101,10 @@ function Selo({ status }: { status: StatusExibicaoFatura }) {
 interface CartaoFaturaProps {
   fatura: Fatura;
   hoje: Date;
-  onPagar: (fatura: Fatura) => void;
+  onConfirmar: (fatura: Fatura) => void;
 }
 
-function CartaoFatura({ fatura, hoje, onPagar }: CartaoFaturaProps) {
+function CartaoFatura({ fatura, hoje, onConfirmar }: CartaoFaturaProps) {
   const status = calcularStatusExibicao(fatura, hoje);
   const pago = status === 'pago';
 
@@ -102,7 +112,7 @@ function CartaoFatura({ fatura, hoje, onPagar }: CartaoFaturaProps) {
     <View style={[styles.cartao, status === 'vencido' && styles.cartaoVencido]}>
       <View style={styles.cartaoTopo}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cartaoDescricao} numberOfLines={1}>
+          <Text style={styles.cartaoDescricao} numberOfLines={2}>
             {fatura.descricao}
           </Text>
           <Text style={styles.cartaoReferencia}>{fatura.referencia}</Text>
@@ -111,20 +121,20 @@ function CartaoFatura({ fatura, hoje, onPagar }: CartaoFaturaProps) {
       </View>
 
       <View style={styles.cartaoRodape}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.cartaoValor}>{formatarMoeda(fatura.valor)}</Text>
           <Text style={styles.cartaoData}>
             {pago
-              ? `Paga em ${formatarDataCurta(fatura.dataPagamentoISO ?? fatura.vencimentoISO)} · ${
-                  fatura.formaPagamento === 'pix' ? 'PIX' : 'Boleto'
-                }`
+              ? fatura.dataPagamentoISO
+                ? `Pagamento confirmado em ${formatarDataHora(fatura.dataPagamentoISO)}`
+                : 'Pagamento confirmado'
               : textoPrazo(fatura, hoje)}
           </Text>
         </View>
 
         {!pago && (
-          <TouchableOpacity style={styles.botaoPagar} onPress={() => onPagar(fatura)} activeOpacity={0.85}>
-            <Text style={styles.botaoPagarTexto}>Pagar</Text>
+          <TouchableOpacity style={styles.botaoConfirmar} onPress={() => onConfirmar(fatura)} activeOpacity={0.85}>
+            <Text style={styles.botaoConfirmarTexto}>Já paguei</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -139,7 +149,7 @@ function EstadoEmDia() {
         <Text style={styles.estadoVazioIcone}>✓</Text>
       </View>
       <Text style={styles.estadoVazioTitulo}>Você está em dia!</Text>
-      <Text style={styles.estadoVazioTexto}>Não há nenhuma fatura em aberto no momento.</Text>
+      <Text style={styles.estadoVazioTexto}>Não há nenhuma conta em aberto no momento.</Text>
     </View>
   );
 }
@@ -151,48 +161,36 @@ function EstadoVazioHistorico() {
         <Text style={styles.estadoVazioIcone}>+</Text>
       </View>
       <Text style={styles.estadoVazioTitulo}>Nenhum pagamento ainda</Text>
-      <Text style={styles.estadoVazioTexto}>Suas faturas pagas vão aparecer aqui.</Text>
+      <Text style={styles.estadoVazioTexto}>As contas que você confirmar como pagas vão aparecer aqui.</Text>
     </View>
   );
 }
 
-// ---------- Modal de pagamento ----------
+// ---------- Modal de confirmação ----------
 
-interface ModalPagamentoProps {
+interface ModalConfirmarPagamentoProps {
   fatura: Fatura | null;
+  confirmando: boolean;
   onFechar: () => void;
-  onConfirmar: (id: string, forma: FormaPagamento) => void;
+  onConfirmar: (id: string) => void;
 }
 
-function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) {
-  const [metodo, setMetodo] = useState<FormaPagamento>('pix');
-
-  function handleFechar() {
-    setMetodo('pix');
-    onFechar();
-  }
-
-  function handleConfirmar() {
-    if (!fatura) return;
-    onConfirmar(fatura.id, metodo);
-    setMetodo('pix');
-  }
-
+function ModalConfirmarPagamento({ fatura, confirmando, onFechar, onConfirmar }: ModalConfirmarPagamentoProps) {
   return (
-    <Modal visible={!!fatura} animationType="slide" transparent onRequestClose={handleFechar}>
+    <Modal visible={!!fatura} animationType="slide" transparent onRequestClose={onFechar}>
       <View style={styles.modalFundo}>
         <View style={styles.modalCartao}>
           <View style={styles.modalAlcinha} />
 
           <View style={styles.modalCabecalho}>
-            <Text style={styles.modalTitulo}>Pagar fatura</Text>
-            <TouchableOpacity onPress={handleFechar} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.modalTitulo}>Confirmar pagamento</Text>
+            <TouchableOpacity onPress={onFechar} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={styles.modalFechar}>Fechar</Text>
             </TouchableOpacity>
           </View>
 
           {fatura && (
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <>
               <View style={styles.resumoFatura}>
                 <Text style={styles.resumoFaturaDescricao}>{fatura.descricao}</Text>
                 <Text style={styles.resumoFaturaValor}>{formatarMoeda(fatura.valor)}</Text>
@@ -201,65 +199,24 @@ function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) 
                 </Text>
               </View>
 
-              <View style={styles.segmentado}>
-                <TouchableOpacity
-                  style={[styles.segmentoBotao, metodo === 'pix' && styles.segmentoBotaoAtivo]}
-                  onPress={() => setMetodo('pix')}
-                >
-                  <Text style={[styles.segmentoTexto, metodo === 'pix' && styles.segmentoTextoAtivo]}>
-                    PIX
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.segmentoBotao, metodo === 'boleto' && styles.segmentoBotaoAtivo]}
-                  onPress={() => setMetodo('boleto')}
-                >
-                  <Text style={[styles.segmentoTexto, metodo === 'boleto' && styles.segmentoTextoAtivo]}>
-                    Boleto
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {metodo === 'pix' ? (
-                <View>
-                  <View style={styles.qrPlaceholder}>
-                    <Text style={styles.qrPlaceholderTexto}>QR Code PIX</Text>
-                    <Text style={styles.qrPlaceholderSubtexto}>(gerado no pagamento real)</Text>
-                  </View>
-
-                  <Text style={styles.campoLabel}>PIX Copia e Cola</Text>
-                  <View style={styles.codigoBox}>
-                    <Text style={styles.codigoTexto} numberOfLines={2}>
-                      {fatura.codigoPix || 'Código não disponível'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity style={styles.botaoSecundario} activeOpacity={0.8}>
-                    <Text style={styles.botaoSecundarioTexto}>Copiar código</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View>
-                  <Text style={styles.campoLabel}>Linha digitável</Text>
-                  <View style={styles.codigoBox}>
-                    <Text style={styles.codigoTexto}>{fatura.linhaDigitavel || 'Código não disponível'}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.botaoSecundario} activeOpacity={0.8}>
-                    <Text style={styles.botaoSecundarioTexto}>Copiar código</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.botaoSecundario} activeOpacity={0.8}>
-                    <Text style={styles.botaoSecundarioTexto}>Baixar boleto em PDF</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity style={styles.botaoEnviar} onPress={handleConfirmar} activeOpacity={0.85}>
-                <Text style={styles.botaoEnviarTexto}>Já efetuei o pagamento</Text>
-              </TouchableOpacity>
-
               <Text style={styles.avisoConfirmacao}>
-                Em produção, a confirmação seria automática assim que o banco processasse o pagamento.
+                O Agilifox não faz pagamentos. Pague esta conta da forma combinada com o síndico e, depois de
+                pagar, confirme aqui. O síndico vê a sua confirmação com a data e a hora.
               </Text>
-            </ScrollView>
+
+              <TouchableOpacity
+                style={[styles.botaoEnviar, confirmando && styles.botaoEnviarDesabilitado]}
+                onPress={() => onConfirmar(fatura.id)}
+                disabled={confirmando}
+                activeOpacity={0.85}
+              >
+                {confirmando ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.botaoEnviarTexto}>Confirmo que paguei esta conta</Text>
+                )}
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -272,8 +229,10 @@ function ModalPagamento({ fatura, onFechar, onConfirmar }: ModalPagamentoProps) 
 export default function TelaPagamentosMorador() {
   const hoje = useMemo(() => new Date(), []);
   const [faturas, setFaturas] = useState<Fatura[]>([]);
+  const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState<Aba>('aberto');
   const [faturaSelecionada, setFaturaSelecionada] = useState<Fatura | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
 
   useEffect(() => {
     carregarFaturas();
@@ -285,17 +244,20 @@ export default function TelaPagamentosMorador() {
     } = await supabase.auth.getUser();
 
     if (!user) {
+      setCarregando(false);
       Alert.alert('Erro', 'Não foi possível identificar o usuário logado.');
       return;
     }
 
     const { data, error } = await supabase
       .from('faturas')
-      .select('id, referencia, descricao, valor, vencimento, status, forma_pagamento, data_pagamento, codigo_pix, linha_digitavel')
+      .select('id, referencia, descricao, valor, vencimento, status, data_pagamento')
       .eq('morador_id', user.id);
 
+    setCarregando(false);
+
     if (error) {
-      Alert.alert('Erro', 'Não foi possível carregar suas faturas.');
+      Alert.alert('Erro', 'Não foi possível carregar suas contas.');
       return;
     }
 
@@ -303,14 +265,11 @@ export default function TelaPagamentosMorador() {
       (data ?? []).map((f) => ({
         id: f.id,
         referencia: f.referencia,
-        descricao: f.descricao ?? '',
+        descricao: f.descricao ?? 'Conta do condomínio',
         valor: Number(f.valor),
         vencimentoISO: f.vencimento,
         statusBase: f.status,
-        dataPagamentoISO: f.data_pagamento ?? undefined,
-        formaPagamento: f.forma_pagamento ?? undefined,
-        codigoPix: f.codigo_pix,
-        linhaDigitavel: f.linha_digitavel,
+        dataPagamentoISO: f.data_pagamento,
       }))
     );
   }
@@ -319,7 +278,7 @@ export default function TelaPagamentosMorador() {
     () =>
       faturas
         .filter((f) => calcularStatusExibicao(f, hoje) !== 'pago')
-        .sort((a, b) => new Date(a.vencimentoISO).getTime() - new Date(b.vencimentoISO).getTime()),
+        .sort((a, b) => a.vencimentoISO.localeCompare(b.vencimentoISO)),
     [faturas, hoje]
   );
 
@@ -327,30 +286,41 @@ export default function TelaPagamentosMorador() {
     () =>
       faturas
         .filter((f) => calcularStatusExibicao(f, hoje) === 'pago')
-        .sort(
-          (a, b) =>
-            new Date(b.dataPagamentoISO ?? b.vencimentoISO).getTime() -
-            new Date(a.dataPagamentoISO ?? a.vencimentoISO).getTime()
-        ),
+        .sort((a, b) => (b.dataPagamentoISO ?? b.vencimentoISO).localeCompare(a.dataPagamentoISO ?? a.vencimentoISO)),
     [faturas, hoje]
   );
 
   const totalEmAberto = faturasEmAberto.reduce((soma, f) => soma + f.valor, 0);
   const faturaDestaque = faturasEmAberto[0] ?? null;
 
-  async function handleConfirmarPagamento(id: string, forma: FormaPagamento) {
-    const { error } = await supabase
-      .from('faturas')
-      .update({ status: 'pago', data_pagamento: new Date().toISOString(), forma_pagamento: forma })
-      .eq('id', id);
+  async function handleConfirmarPagamento(id: string) {
+    setConfirmando(true);
 
-    if (error) {
-      Alert.alert('Erro', 'Não foi possível confirmar o pagamento.');
+    // A data enviada é provisória: o banco grava o horário do servidor no lugar dela.
+    const { data, error } = await supabase
+      .from('faturas')
+      .update({ status: 'pago', data_pagamento: new Date().toISOString() })
+      .eq('id', id)
+      .select('id');
+
+    setConfirmando(false);
+
+    if (error || !data || data.length === 0) {
+      Alert.alert('Erro', 'Não foi possível confirmar o pagamento. Tente de novo.');
       return;
     }
 
     setFaturaSelecionada(null);
     carregarFaturas();
+    Alert.alert('Pagamento confirmado', 'O síndico já pode ver a sua confirmação.');
+  }
+
+  if (carregando) {
+    return (
+      <SafeAreaView edges={['top']} style={[styles.tela, styles.centro]}>
+        <ActivityIndicator size="large" color="#2B2823" />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -367,7 +337,7 @@ export default function TelaPagamentosMorador() {
       {faturaDestaque && (
         <View style={styles.cartaoDestaque}>
           <View style={styles.cartaoDestaqueTopo}>
-            <Text style={styles.cartaoDestaqueLabel}>Próximo pagamento</Text>
+            <Text style={styles.cartaoDestaqueLabel}>Próxima conta</Text>
             <Selo status={calcularStatusExibicao(faturaDestaque, hoje)} />
           </View>
           <Text style={styles.cartaoDestaqueDescricao}>{faturaDestaque.descricao}</Text>
@@ -375,16 +345,16 @@ export default function TelaPagamentosMorador() {
           <Text style={styles.cartaoDestaquePrazo}>{textoPrazo(faturaDestaque, hoje)}</Text>
 
           <TouchableOpacity
-            style={styles.botaoEnviar}
+            style={styles.botaoDestaque}
             onPress={() => setFaturaSelecionada(faturaDestaque)}
             activeOpacity={0.85}
           >
-            <Text style={styles.botaoEnviarTexto}>Pagar agora</Text>
+            <Text style={styles.botaoDestaqueTexto}>Confirmar pagamento</Text>
           </TouchableOpacity>
 
           {faturasEmAberto.length > 1 && (
             <Text style={styles.cartaoDestaqueTotal}>
-              Total em aberto: {formatarMoeda(totalEmAberto)} ({faturasEmAberto.length} faturas)
+              Total em aberto: {formatarMoeda(totalEmAberto)} ({faturasEmAberto.length} contas)
             </Text>
           )}
         </View>
@@ -410,7 +380,7 @@ export default function TelaPagamentosMorador() {
           data={faturasEmAberto}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <CartaoFatura fatura={item} hoje={hoje} onPagar={setFaturaSelecionada} />
+            <CartaoFatura fatura={item} hoje={hoje} onConfirmar={setFaturaSelecionada} />
           )}
           contentContainerStyle={
             faturasEmAberto.length === 0 ? styles.listaVaziaContainer : styles.listaConteudo
@@ -423,7 +393,7 @@ export default function TelaPagamentosMorador() {
           data={faturasPagas}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <CartaoFatura fatura={item} hoje={hoje} onPagar={setFaturaSelecionada} />
+            <CartaoFatura fatura={item} hoje={hoje} onConfirmar={setFaturaSelecionada} />
           )}
           contentContainerStyle={
             faturasPagas.length === 0 ? styles.listaVaziaContainer : styles.listaConteudo
@@ -433,8 +403,9 @@ export default function TelaPagamentosMorador() {
         />
       )}
 
-      <ModalPagamento
+      <ModalConfirmarPagamento
         fatura={faturaSelecionada}
+        confirmando={confirmando}
         onFechar={() => setFaturaSelecionada(null)}
         onConfirmar={handleConfirmarPagamento}
       />
@@ -448,6 +419,10 @@ const styles = StyleSheet.create({
   tela: {
     flex: 1,
     backgroundColor: '#FAF8F5',
+  },
+  centro: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cabecalho: {
     paddingHorizontal: 20,
@@ -503,6 +478,17 @@ const styles = StyleSheet.create({
     color: '#A8A199',
     textAlign: 'center',
     marginTop: 12,
+  },
+  botaoDestaque: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  botaoDestaqueTexto: {
+    color: '#2B2823',
+    fontWeight: '700',
+    fontSize: 15,
   },
   abas: {
     flexDirection: 'row',
@@ -563,6 +549,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 10,
     marginBottom: 12,
   },
   cartaoDescricao: {
@@ -579,6 +566,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
   },
   cartaoValor: {
     fontSize: 17,
@@ -590,13 +578,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8A8377',
   },
-  botaoPagar: {
+  botaoConfirmar: {
     backgroundColor: '#2B2823',
     borderRadius: 10,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  botaoPagarTexto: {
+  botaoConfirmarTexto: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
@@ -662,7 +650,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 30,
-    maxHeight: '90%',
   },
   modalAlcinha: {
     width: 40,
@@ -691,7 +678,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F5F1',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 18,
+    marginBottom: 16,
   },
   resumoFaturaDescricao: {
     fontSize: 13,
@@ -708,100 +695,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8A8377',
   },
-  segmentado: {
-    flexDirection: 'row',
-    backgroundColor: '#F0ECE5',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 18,
-  },
-  segmentoBotao: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 9,
-    alignItems: 'center',
-  },
-  segmentoBotaoAtivo: {
-    backgroundColor: '#2B2823',
-  },
-  segmentoTexto: {
+  avisoConfirmacao: {
     fontSize: 13,
-    fontWeight: '600',
     color: '#6B6459',
-  },
-  segmentoTextoAtivo: {
-    color: '#FFFFFF',
-  },
-  qrPlaceholder: {
-    width: 180,
-    height: 180,
-    alignSelf: 'center',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#E5E0D8',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    backgroundColor: '#F7F5F1',
-  },
-  qrPlaceholderTexto: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2B2823',
-  },
-  qrPlaceholderSubtexto: {
-    fontSize: 10,
-    color: '#A8A199',
-    marginTop: 4,
-  },
-  campoLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2B2823',
-    marginBottom: 8,
-  },
-  codigoBox: {
-    backgroundColor: '#F7F5F1',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EDE9E1',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  codigoTexto: {
-    fontSize: 12,
-    color: '#6B6459',
-  },
-  botaoSecundario: {
-    backgroundColor: '#F0ECE5',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  botaoSecundarioTexto: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2B2823',
+    lineHeight: 19,
   },
   botaoEnviar: {
     backgroundColor: '#2B2823',
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 18,
+  },
+  botaoEnviarDesabilitado: {
+    opacity: 0.6,
   },
   botaoEnviarTexto: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
-  },
-  avisoConfirmacao: {
-    fontSize: 11,
-    color: '#A8A199',
-    textAlign: 'center',
-    marginTop: 12,
   },
 });

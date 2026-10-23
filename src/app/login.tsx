@@ -12,6 +12,7 @@ const Routes = {
 export default function Index() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
@@ -89,14 +90,35 @@ export default function Index() {
           autoCapitalize="none"
           keyboardType="email-address"
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#999999"
-          value={senha}
-          onChangeText={setSenha}
-          secureTextEntry
-        />
+        <View style={styles.campoSenha}>
+          <TextInput
+            style={[styles.input, styles.inputSenha]}
+            placeholder="Senha"
+            placeholderTextColor="#999999"
+            value={senha}
+            onChangeText={setSenha}
+            secureTextEntry={!mostrarSenha}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {/* Olho aberto quando a senha está visível, fechado quando está escondida */}
+          <Pressable
+            style={styles.botaoOlho}
+            onPress={() => setMostrarSenha((atual) => !atual)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={mostrarSenha ? 'Esconder senha' : 'Mostrar senha'}
+          >
+            <Image
+              source={
+                mostrarSenha
+                  ? require('../../assets/images/olhoaberto.png')
+                  : require('../../assets/images/olhofechados.png')
+              }
+              style={styles.iconeOlho}
+            />
+          </Pressable>
+        </View>
 
         {erro && <Text style={styles.erroText}>{erro}</Text>}
 
@@ -183,6 +205,26 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: '#1a1a1a',
         marginBottom: 14,
+    },
+    campoSenha: {
+        justifyContent: 'center',
+    },
+    inputSenha: {
+        paddingRight: 52,
+    },
+    botaoOlho: {
+        position: 'absolute',
+        right: 12,
+        top: 0,
+        height: 50,
+        width: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconeOlho: {
+        width: 105,
+        height: 44,
+        resizeMode: 'contain',
     },
     erroText: {
         color: '#c0392b',

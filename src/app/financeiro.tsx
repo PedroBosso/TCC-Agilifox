@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -20,7 +21,8 @@ import { supabase } from '../lib/supabase';
 // ---------- Tipos ----------
 
 type TipoLancamento = 'receita' | 'despesa';
-type Aba = 'resumo' | 'lancamentos' | 'inadimplencia';
+type Aba = 'resumo' | 'lancamentos' | 'cobrancas';
+type SubAbaCobrancas = 'contas' | 'inadimplentes';
 type FiltroTipo = 'todos' | TipoLancamento;
 
 interface CategoriaInfo {
@@ -51,7 +53,48 @@ interface Inadimplente {
   vencimentoMaisAntigoISO: string;
 }
 
+// Uma conta lançada para um morador (tabela faturas).
+interface FaturaSindico {
+  id: string;
+  moradorId: string;
+  moradorNome: string;
+  unidade: string;
+  descricao: string;
+  valor: number;
+  vencimentoISO: string;
+  status: 'pendente' | 'pago';
+  dataPagamentoISO: string | null;
+}
+
+// Contas com o mesmo assunto e vencimento, lançadas juntas para vários moradores.
+interface LoteCobranca {
+  chave: string;
+  assunto: string;
+  vencimentoISO: string;
+  faturas: FaturaSindico[];
+}
+
 // ---------- Helpers ----------
+
+// Datas sem horário (AAAA-MM-DD) são lidas no fuso do celular, para não aparecerem um dia antes.
+function dataLocal(dataISO: string): Date {
+  const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataISO);
+  return partes ? new Date(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3])) : new Date(dataISO);
+}
+
+function formatarDataNumerica(dataISO: string): string {
+  return dataLocal(dataISO).toLocaleDateString('pt-BR');
+}
+
+function formatarDataHora(dataISO: string): string {
+  const data = new Date(dataISO);
+  return `${data.toLocaleDateString('pt-BR')} às ${data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function textoUnidade(apto: string | null, bloco: string | null): string {
+  const unidade = apto ? `Apto ${apto}` : 'Apartamento não informado';
+  return bloco ? `${unidade} · ${bloco}` : unidade;
+}
 
 function addDias(data: Date, dias: number): Date {
   return new Date(data.getTime() + dias * 24 * 60 * 60 * 1000);
@@ -73,11 +116,11 @@ function formatarMesAno(data: Date): string {
 }
 
 function formatarDataCurta(dataISO: string): string {
-  return new Date(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  return dataLocal(dataISO).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 function mesmoMes(dataISO: string, referencia: Date): boolean {
-  const d = new Date(dataISO);
+  const d = dataLocal(dataISO);
   return d.getFullYear() === referencia.getFullYear() && d.getMonth() === referencia.getMonth();
 }
 
@@ -232,7 +275,7 @@ function CartaoInadimplente({ inadimplente }: CartaoInadimplenteProps) {
         </View>
         <View style={[styles.seloAtraso, { backgroundColor: grave ? '#FBEAE8' : '#FBF1DE' }]}>
           <Text style={[styles.seloAtrasoTexto, { color: grave ? '#C0392B' : '#B7791F' }]}>
-            {inadimplente.faturasEmAtraso} {inadimplente.faturasEmAtraso === 1 ? 'fatura' : 'faturas'}
+            {inadimplente.faturasEmAtraso} {inadimplente.faturasEmAtraso === 1 ? 'conta' : 'contas'}
           </Text>
         </View>
       </View>
@@ -241,6 +284,110 @@ function CartaoInadimplente({ inadimplente }: CartaoInadimplenteProps) {
       <Text style={styles.inadimplenteUltimoPagamento}>
         Vencida desde {formatarDataCurta(inadimplente.vencimentoMaisAntigoISO)}
       </Text>
+    </View>
+  );
+}
+
+interface LinhaFaturaProps {
+  fatura: FaturaSindico;
+  hojeISO: string;
+  onExcluir: (fatura: FaturaSindico) => void;
+  onDesfazerPagamento: (fatura: FaturaSindico) => void;
+}
+
+function LinhaFatura({ fatura, hojeISO, onExcluir, onDesfazerPagamento }: LinhaFaturaProps) {
+  const paga = fatura.status === 'pago';
+  const vencida = !paga && fatura.vencimentoISO < hojeISO;
+
+  let situacao = 'Aguardando pagamento';
+  let corSituacao = '#B7791F';
+  if (paga) {
+    situacao = fatura.dataPagamentoISO
+      ? `Pagamento confirmado em ${formatarDataHora(fatura.dataPagamentoISO)}`
+      : 'Pagamento confirmado';
+    corSituacao = '#2F855A';
+  } else if (vencida) {
+    situacao = 'Vencida, sem confirmação';
+    corSituacao = '#C0392B';
+  }
+
+  return (
+    <View style={styles.linhaFatura}>
+      <View style={styles.linhaFaturaInfo}>
+        <Text style={styles.linhaFaturaNome} numberOfLines={1}>
+          {fatura.moradorNome}
+        </Text>
+        <Text style={styles.linhaFaturaUnidade}>{fatura.unidade}</Text>
+        <Text style={[styles.linhaFaturaSituacao, { color: corSituacao }]}>{situacao}</Text>
+      </View>
+      <View style={styles.linhaFaturaDireita}>
+        <Text style={styles.linhaFaturaValor}>{formatarMoeda(fatura.valor)}</Text>
+        {paga ? (
+          <TouchableOpacity onPress={() => onDesfazerPagamento(fatura)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Text style={styles.lancamentoAcaoTextoExcluir}>Não recebido</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => onExcluir(fatura)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            <Text style={styles.lancamentoAcaoTextoExcluir}>Excluir</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+interface CartaoLoteProps {
+  lote: LoteCobranca;
+  hojeISO: string;
+  aberto: boolean;
+  onAlternar: () => void;
+  onExcluir: (fatura: FaturaSindico) => void;
+  onDesfazerPagamento: (fatura: FaturaSindico) => void;
+}
+
+function CartaoLote({ lote, hojeISO, aberto, onAlternar, onExcluir, onDesfazerPagamento }: CartaoLoteProps) {
+  const pagas = lote.faturas.filter((f) => f.status === 'pago');
+  const total = lote.faturas.reduce((soma, f) => soma + f.valor, 0);
+  const recebido = pagas.reduce((soma, f) => soma + f.valor, 0);
+  const completa = pagas.length === lote.faturas.length;
+  const atrasada = !completa && lote.vencimentoISO < hojeISO;
+
+  const cores = completa
+    ? { fundo: '#E7F4ED', texto: '#2F855A' }
+    : atrasada
+    ? { fundo: '#FBEAE8', texto: '#C0392B' }
+    : { fundo: '#FBF1DE', texto: '#B7791F' };
+
+  return (
+    <View style={styles.cartaoLote}>
+      <TouchableOpacity onPress={onAlternar} activeOpacity={0.8}>
+        <View style={styles.loteTopo}>
+          <View style={styles.loteTitulos}>
+            <Text style={styles.loteAssunto}>{lote.assunto}</Text>
+            <Text style={styles.loteVencimento}>Vencimento em {formatarDataNumerica(lote.vencimentoISO)}</Text>
+          </View>
+          <View style={[styles.seloAtraso, { backgroundColor: cores.fundo }]}>
+            <Text style={[styles.seloAtrasoTexto, { color: cores.texto }]}>
+              {pagas.length}/{lote.faturas.length} {lote.faturas.length === 1 ? 'paga' : 'pagas'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.loteValores}>
+          {formatarMoeda(recebido)} confirmados de {formatarMoeda(total)}
+        </Text>
+        <Text style={styles.loteExpandir}>{aberto ? 'Ocultar moradores' : 'Ver moradores'}</Text>
+      </TouchableOpacity>
+
+      {aberto &&
+        lote.faturas.map((fatura) => (
+          <LinhaFatura
+            key={fatura.id}
+            fatura={fatura}
+            hojeISO={hojeISO}
+            onExcluir={onExcluir}
+            onDesfazerPagamento={onDesfazerPagamento}
+          />
+        ))}
     </View>
   );
 }
@@ -325,7 +472,7 @@ function ModalLancamento({
       );
       setDescricao(lancamentoEditando?.descricao ?? '');
       setValor(lancamentoEditando ? String(lancamentoEditando.valor) : '');
-      setDataSelecionada(lancamentoEditando ? new Date(lancamentoEditando.dataISO) : new Date());
+      setDataSelecionada(lancamentoEditando ? dataLocal(lancamentoEditando.dataISO) : new Date());
     }
   }, [visivel, lancamentoEditando, despesaCategorias, receitaCategorias]);
 
@@ -487,7 +634,7 @@ export default function TelaFinanceiroSindico() {
   const [abaAtiva, setAbaAtiva] = useState<Aba>('resumo');
   const [categorias, setCategorias] = useState<CategoriaInfo[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
-  const [inadimplentes, setInadimplentes] = useState<Inadimplente[]>([]);
+  const [faturas, setFaturas] = useState<FaturaSindico[]>([]);
   const [mesSelecionado, setMesSelecionado] = useState<Date>(hoje);
 
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos');
@@ -495,10 +642,12 @@ export default function TelaFinanceiroSindico() {
   const [lancamentoEditando, setLancamentoEditando] = useState<Lancamento | null>(null);
   const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState<Lancamento | null>(null);
 
+  const [subAbaCobrancas, setSubAbaCobrancas] = useState<SubAbaCobrancas>('contas');
+  const [lotesAbertos, setLotesAbertos] = useState<string[]>([]);
+
   useEffect(() => {
     carregarCategorias();
     carregarLancamentos();
-    carregarInadimplentes();
   }, []);
 
   async function carregarCategorias() {
@@ -544,57 +693,53 @@ export default function TelaFinanceiroSindico() {
     );
   }
 
-  async function carregarInadimplentes() {
-    const hojeISO = formatarDataISO(new Date());
-    const { data: faturasVencidas, error } = await supabase
+  // Carrega todas as contas lançadas para os moradores, com o nome e a unidade de cada um.
+  const carregarFaturas = useCallback(async () => {
+    const { data, error } = await supabase
       .from('faturas')
-      .select('id, morador_id, valor, vencimento')
-      .eq('status', 'pendente')
-      .lt('vencimento', hojeISO);
+      .select('id, morador_id, descricao, valor, vencimento, status, data_pagamento');
 
     if (error) {
-      Alert.alert('Erro', 'Não foi possível carregar a inadimplência.');
+      Alert.alert('Erro', 'Não foi possível carregar as cobranças.');
       return;
     }
 
-    const linhas = faturasVencidas ?? [];
-    if (linhas.length === 0) {
-      setInadimplentes([]);
-      return;
-    }
-
+    const linhas = data ?? [];
     const moradorIds = [...new Set(linhas.map((f) => f.morador_id))];
-    const { data: perfis } = await supabase.from('profiles').select('id, nome, apto').in('id', moradorIds);
-    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+    let perfis: { id: string; nome: string; apto: string | null; bloco: string | null }[] = [];
+    if (moradorIds.length > 0) {
+      const { data: perfisEncontrados } = await supabase
+        .from('profiles')
+        .select('id, nome, apto, bloco')
+        .in('id', moradorIds);
+      perfis = perfisEncontrados ?? [];
+    }
+    const perfilPorId = new Map(perfis.map((p) => [p.id, p]));
 
-    const totalPorMorador = new Map<
-      string,
-      { valorDevido: number; faturasEmAtraso: number; vencimentoMaisAntigoISO: string }
-    >();
-    linhas.forEach((f) => {
-      const atual = totalPorMorador.get(f.morador_id) ?? {
-        valorDevido: 0,
-        faturasEmAtraso: 0,
-        vencimentoMaisAntigoISO: f.vencimento,
-      };
-      atual.valorDevido += Number(f.valor);
-      atual.faturasEmAtraso += 1;
-      if (f.vencimento < atual.vencimentoMaisAntigoISO) atual.vencimentoMaisAntigoISO = f.vencimento;
-      totalPorMorador.set(f.morador_id, atual);
-    });
-
-    setInadimplentes(
-      Array.from(totalPorMorador.entries()).map(([moradorId, dados]) => {
-        const perfil = perfilPorId.get(moradorId);
+    setFaturas(
+      linhas.map((f) => {
+        const perfil = perfilPorId.get(f.morador_id);
         return {
-          moradorId,
-          morador: perfil?.nome ?? 'Morador não identificado',
-          apto: perfil?.apto ?? '-',
-          ...dados,
+          id: f.id,
+          moradorId: f.morador_id,
+          moradorNome: perfil?.nome ?? 'Morador não identificado',
+          unidade: textoUnidade(perfil?.apto ?? null, perfil?.bloco ?? null),
+          descricao: f.descricao ?? 'Conta do condomínio',
+          valor: Number(f.valor),
+          vencimentoISO: f.vencimento,
+          status: f.status,
+          dataPagamentoISO: f.data_pagamento,
         };
       })
     );
-  }
+  }, []);
+
+  // Recarrega ao voltar para a tela, por exemplo depois de lançar uma conta nova.
+  useFocusEffect(
+    useCallback(() => {
+      carregarFaturas();
+    }, [carregarFaturas])
+  );
 
   function getCategoria(id: string): CategoriaInfo {
     return categorias.find((c) => c.id === id) ?? { id, nome: 'Outros', cor: '#8A8377', tipo: 'despesa', orcamentoMensal: null };
@@ -637,10 +782,114 @@ export default function TelaFinanceiroSindico() {
   const lancamentosFiltrados = useMemo(() => {
     return [...lancamentosDoMes]
       .filter((l) => filtroTipo === 'todos' || l.tipo === filtroTipo)
-      .sort((a, b) => new Date(b.dataISO).getTime() - new Date(a.dataISO).getTime());
+      .sort((a, b) => b.dataISO.localeCompare(a.dataISO));
   }, [lancamentosDoMes, filtroTipo]);
 
+  const hojeISO = formatarDataISO(hoje);
+
+  const lotes = useMemo(() => {
+    const porChave = new Map<string, LoteCobranca>();
+    faturas.forEach((fatura) => {
+      const chave = `${fatura.descricao}|${fatura.vencimentoISO}`;
+      const lote = porChave.get(chave) ?? {
+        chave,
+        assunto: fatura.descricao,
+        vencimentoISO: fatura.vencimentoISO,
+        faturas: [],
+      };
+      lote.faturas.push(fatura);
+      porChave.set(chave, lote);
+    });
+
+    // Contas mais recentes primeiro; dentro de cada uma, quem ainda não pagou aparece antes.
+    return [...porChave.values()]
+      .map((lote) => ({
+        ...lote,
+        faturas: [...lote.faturas].sort((a, b) =>
+          a.status === b.status
+            ? a.unidade.localeCompare(b.unidade, 'pt-BR', { numeric: true })
+            : a.status === 'pendente'
+            ? -1
+            : 1
+        ),
+      }))
+      .sort((a, b) => b.vencimentoISO.localeCompare(a.vencimentoISO));
+  }, [faturas]);
+
+  const inadimplentes = useMemo(() => {
+    const porMorador = new Map<string, Inadimplente>();
+    faturas
+      .filter((f) => f.status === 'pendente' && f.vencimentoISO < hojeISO)
+      .forEach((f) => {
+        const atual = porMorador.get(f.moradorId) ?? {
+          moradorId: f.moradorId,
+          morador: f.moradorNome,
+          apto: f.unidade,
+          valorDevido: 0,
+          faturasEmAtraso: 0,
+          vencimentoMaisAntigoISO: f.vencimentoISO,
+        };
+        atual.valorDevido += f.valor;
+        atual.faturasEmAtraso += 1;
+        if (f.vencimentoISO < atual.vencimentoMaisAntigoISO) atual.vencimentoMaisAntigoISO = f.vencimentoISO;
+        porMorador.set(f.moradorId, atual);
+      });
+    return [...porMorador.values()].sort((a, b) => b.valorDevido - a.valorDevido);
+  }, [faturas, hojeISO]);
+
   const totalEmAtraso = inadimplentes.reduce((s, i) => s + i.valorDevido, 0);
+
+  function alternarLote(chave: string) {
+    setLotesAbertos((atuais) => (atuais.includes(chave) ? atuais.filter((c) => c !== chave) : [...atuais, chave]));
+  }
+
+  function handleExcluirFatura(fatura: FaturaSindico) {
+    Alert.alert(
+      'Excluir conta',
+      `Excluir "${fatura.descricao}" de ${fatura.moradorNome} (${formatarMoeda(fatura.valor)})? O morador deixa de ver esta conta.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            const { data, error } = await supabase.from('faturas').delete().eq('id', fatura.id).select('id');
+            if (error || !data || data.length === 0) {
+              Alert.alert('Erro', 'Não foi possível excluir a conta. Contas com pagamento confirmado não podem ser excluídas.');
+              return;
+            }
+            carregarFaturas();
+          },
+        },
+      ]
+    );
+  }
+
+  // Usado quando o morador confirmou, mas o dinheiro não chegou: a conta volta a ficar pendente.
+  function handleDesfazerPagamento(fatura: FaturaSindico) {
+    Alert.alert(
+      'Pagamento não recebido',
+      `A conta de ${fatura.moradorNome} volta a ficar pendente, e ele poderá confirmar o pagamento de novo.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Voltar para pendente',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('faturas')
+              .update({ status: 'pendente', data_pagamento: null, forma_pagamento: null })
+              .eq('id', fatura.id);
+            if (error) {
+              Alert.alert('Erro', 'Não foi possível alterar a conta.');
+              return;
+            }
+            carregarFaturas();
+          },
+        },
+      ]
+    );
+  }
 
   const podeAvancarMes = !(
     mesSelecionado.getFullYear() === hoje.getFullYear() && mesSelecionado.getMonth() === hoje.getMonth()
@@ -749,10 +998,10 @@ export default function TelaFinanceiroSindico() {
           <Text style={[styles.abaTexto, abaAtiva === 'lancamentos' && styles.abaTextoAtivo]}>Lançamentos</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.abaBotao, abaAtiva === 'inadimplencia' && styles.abaBotaoAtiva]}
-          onPress={() => setAbaAtiva('inadimplencia')}
+          style={[styles.abaBotao, abaAtiva === 'cobrancas' && styles.abaBotaoAtiva]}
+          onPress={() => setAbaAtiva('cobrancas')}
         >
-          <Text style={[styles.abaTexto, abaAtiva === 'inadimplencia' && styles.abaTextoAtivo]}>Inadimplência</Text>
+          <Text style={[styles.abaTexto, abaAtiva === 'cobrancas' && styles.abaTextoAtivo]}>Cobranças</Text>
         </TouchableOpacity>
       </View>
 
@@ -840,27 +1089,75 @@ export default function TelaFinanceiroSindico() {
         </>
       )}
 
-      {abaAtiva === 'inadimplencia' && (
-        <FlatList
-          data={inadimplentes}
-          keyExtractor={(item) => item.moradorId}
-          renderItem={({ item }) => <CartaoInadimplente inadimplente={item} />}
-          ListHeaderComponent={
-            inadimplentes.length > 0 ? (
-              <View style={styles.resumoInadimplencia}>
-                <Text style={styles.resumoInadimplenciaValor}>{formatarMoeda(totalEmAtraso)}</Text>
-                <Text style={styles.resumoInadimplenciaLabel}>
-                  em aberto · {inadimplentes.length} morador{inadimplentes.length > 1 ? 'es' : ''}
-                </Text>
-              </View>
-            ) : null
-          }
-          contentContainerStyle={inadimplentes.length === 0 ? styles.listaVaziaContainer : styles.listaConteudo}
-          ListEmptyComponent={
-            <EstadoVazio titulo="Nenhum morador inadimplente" texto="Todos os moradores estão em dia com o condomínio." />
-          }
-          showsVerticalScrollIndicator={false}
-        />
+      {abaAtiva === 'cobrancas' && (
+        <>
+          <TouchableOpacity
+            style={styles.botaoLancarConta}
+            onPress={() => router.push('./lancarConta')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.botaoLancarContaTexto}>Lançar nova conta</Text>
+          </TouchableOpacity>
+
+          <View style={styles.filtrosLinha}>
+            <Chip
+              label="Contas lançadas"
+              ativo={subAbaCobrancas === 'contas'}
+              onPress={() => setSubAbaCobrancas('contas')}
+            />
+            <Chip
+              label={inadimplentes.length > 0 ? `Inadimplentes (${inadimplentes.length})` : 'Inadimplentes'}
+              ativo={subAbaCobrancas === 'inadimplentes'}
+              onPress={() => setSubAbaCobrancas('inadimplentes')}
+            />
+          </View>
+
+          {subAbaCobrancas === 'contas' ? (
+            <FlatList
+              data={lotes}
+              keyExtractor={(item) => item.chave}
+              renderItem={({ item }) => (
+                <CartaoLote
+                  lote={item}
+                  hojeISO={hojeISO}
+                  aberto={lotesAbertos.includes(item.chave)}
+                  onAlternar={() => alternarLote(item.chave)}
+                  onExcluir={handleExcluirFatura}
+                  onDesfazerPagamento={handleDesfazerPagamento}
+                />
+              )}
+              contentContainerStyle={lotes.length === 0 ? styles.listaVaziaContainer : styles.listaConteudo}
+              ListEmptyComponent={
+                <EstadoVazio
+                  titulo="Nenhuma conta lançada"
+                  texto='Toque em "Lançar nova conta" para cobrar os moradores.'
+                />
+              }
+              showsVerticalScrollIndicator={false}
+            />
+          ) : (
+            <FlatList
+              data={inadimplentes}
+              keyExtractor={(item) => item.moradorId}
+              renderItem={({ item }) => <CartaoInadimplente inadimplente={item} />}
+              ListHeaderComponent={
+                inadimplentes.length > 0 ? (
+                  <View style={styles.resumoInadimplencia}>
+                    <Text style={styles.resumoInadimplenciaValor}>{formatarMoeda(totalEmAtraso)}</Text>
+                    <Text style={styles.resumoInadimplenciaLabel}>
+                      vencido · {inadimplentes.length} morador{inadimplentes.length > 1 ? 'es' : ''}
+                    </Text>
+                  </View>
+                ) : null
+              }
+              contentContainerStyle={inadimplentes.length === 0 ? styles.listaVaziaContainer : styles.listaConteudo}
+              ListEmptyComponent={
+                <EstadoVazio titulo="Nenhum morador inadimplente" texto="Todos os moradores estão em dia com o condomínio." />
+              }
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </>
       )}
 
       <ModalLancamento
@@ -1221,6 +1518,96 @@ const styles = StyleSheet.create({
   },
   botaoNotificarTextoFeito: {
     color: '#2F855A',
+  },
+  botaoLancarConta: {
+    backgroundColor: '#2B2823',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  botaoLancarContaTexto: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cartaoLote: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  loteTopo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 8,
+  },
+  loteTitulos: {
+    flex: 1,
+  },
+  loteAssunto: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2B2823',
+  },
+  loteVencimento: {
+    fontSize: 12,
+    color: '#8A8377',
+    marginTop: 2,
+  },
+  loteValores: {
+    fontSize: 13,
+    color: '#6B6459',
+  },
+  loteExpandir: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3D6FB4',
+    marginTop: 8,
+  },
+  linhaFatura: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EDE9E1',
+    paddingTop: 10,
+    marginTop: 10,
+  },
+  linhaFaturaInfo: {
+    flex: 1,
+  },
+  linhaFaturaNome: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2B2823',
+  },
+  linhaFaturaUnidade: {
+    fontSize: 11,
+    color: '#8A8377',
+    marginTop: 1,
+  },
+  linhaFaturaSituacao: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  linhaFaturaDireita: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  linhaFaturaValor: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2B2823',
   },
   estadoVazio: {
     flex: 1,

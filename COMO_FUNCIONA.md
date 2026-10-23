@@ -30,7 +30,7 @@ TCC-Agilifox/
 │   ├── components/     → pedaços de tela reutilizáveis (ex.: a seta de voltar usada em todas as telas)
 │   ├── lib/supabase.ts → a "ponte" que conecta o app ao banco de dados
 │   └── theme/          → cores e tamanhos padronizados
-├── supabase/migrations/→ os comandos SQL que criam o banco (11 arquivos)
+├── supabase/migrations/→ os comandos SQL que criam o banco (12 arquivos)
 ├── assets/images/      → ícones e imagens
 ├── app.json            → configurações do app (nome, ícone, plugins)
 └── .env                → endereço e chave do seu banco (não vai para o GitHub)
@@ -235,10 +235,28 @@ no histórico da portaria.
 O reconhecimento facial ainda não está ligado. O passo a passo para
 implementá-lo está em `RECONHECIMENTO_FACIAL.md`.
 
+### Contas do condomínio (cobranças)
+O síndico abre "Financeiro", aba "Cobranças", e toca em "Lançar nova conta".
+Ele escreve o assunto (por exemplo, "Taxa condominial de novembro"), escolhe o
+vencimento e coloca o valor de cada morador. Quem fica em branco não recebe a
+conta. Cada morador vê as próprias contas em "Pagamentos".
+
+O app **não movimenta dinheiro**. O morador paga pelo meio combinado com o
+síndico e toca em "Já paguei" para confirmar. O síndico acompanha, em cada
+conta, quem já confirmou e quando.
+- A data da confirmação é gravada pelo banco, não pelo celular do morador.
+- O morador só consegue confirmar o pagamento. Ele não consegue mudar o valor,
+  o assunto nem o vencimento, nem mesmo chamando a API por fora do app.
+- Se o dinheiro não chegou, o síndico marca "Não recebido" e a conta volta a
+  ficar pendente.
+- O síndico pode excluir uma conta lançada por engano, desde que ninguém tenha
+  confirmado o pagamento dela.
+- A lista de inadimplentes mostra quem tem contas vencidas sem confirmação.
+
 ### Outras
 Achados e perdidos, pets, veículos e vagas (incluindo aluguel de vaga entre
-moradores), assembleias online, enquetes com votação, financeiro (prestação de
-contas e faturas) e câmeras.
+moradores), assembleias online, enquetes com votação, financeiro (receitas,
+despesas e prestação de contas) e câmeras.
 
 ---
 
@@ -261,7 +279,8 @@ São **31 tabelas**. As principais:
 | `registros_acesso` | Entradas e saídas liberadas pela portaria |
 | `veiculos` / `vagas` | Carros e vagas de garagem |
 | `alertas_panico` | Acionamentos do botão de emergência |
-| `faturas` / `lancamentos_financeiros` | Cobranças e contas do condomínio |
+| `faturas` | Contas lançadas pelo síndico para cada morador e a confirmação de pagamento |
+| `lancamentos_financeiros` | Receitas e despesas do condomínio |
 
 ### Os arquivos de migração
 
@@ -276,6 +295,8 @@ executados **em ordem**:
   segurança apontadas pelo Supabase, chat do prédio, mensagens diretas, a
   liberação do síndico no chat, a lista de blocos, a lista de presença das
   assembleias e a trava que impede o usuário de alterar o próprio papel
+- **0012** — trava das contas: o morador só confirma o pagamento, com a data
+  gravada pelo banco, e o síndico pode excluir contas ainda não pagas
 
 O passo a passo para rodar tudo isso está em
 [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
